@@ -589,9 +589,13 @@ def _app_shell(session: dict, active_topic: str = None, lang: str = "en", user: 
                     cls="sidebar-section",
                 ),
                 # Methodology link
-                A(
-                    DivLAligned(UkIcon("book-open", height=14), Span("Methodology", cls="text-xs"), cls="gap-1"),
-                    href="/methodology", target="_blank", cls="no-underline px-2 py-1 text-xs text-muted hover:underline",
+                Div(
+                    Div("Info", cls="sidebar-section-title"),
+                    A(
+                        DivLAligned(UkIcon("book-open", height=16), Span("Methodology", cls="text-sm font-medium"), cls="gap-2"),
+                        href="/methodology", cls="sidebar-topic no-underline",
+                    ),
+                    cls="sidebar-section",
                 ),
                 _config_panel(lang) if user else None,
                 id="left-pane",
