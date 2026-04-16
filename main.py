@@ -80,11 +80,26 @@ app, rt = fast_app(
             .sidebar-section { margin-bottom: 16px; }
             .sidebar-section-title { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #9ca3af; margin-bottom: 6px; padding-left: 10px; }
 
+            /* Starter question cards */
+            .starter-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+            .starter-card { cursor: pointer; padding: 10px 12px; border: 1px solid #e5e7eb; border-radius: 10px;
+                            font-size: 0.8rem; transition: background 0.15s, border-color 0.15s; }
+            .starter-card:hover { background: #eff6ff; border-color: #3b82f6; }
+
             /* Mobile */
+            .mobile-tabs { display: none; }
             @media (max-width: 768px) {
-                .left-pane { display: none; }
-                .right-pane { display: none; }
+                .left-pane { display: none; position: fixed; top: 56px; left: 0; bottom: 0; z-index: 50; background: white; width: 85vw; box-shadow: 2px 0 12px rgba(0,0,0,0.15); }
+                .left-pane.mobile-open { display: block; }
+                .right-pane { display: none; position: fixed; top: 56px; right: 0; bottom: 0; z-index: 50; background: white; width: 85vw; box-shadow: -2px 0 12px rgba(0,0,0,0.15); }
+                .right-pane.mobile-open { display: block; }
+                .mobile-tabs { display: flex; justify-content: space-around; border-bottom: 1px solid #e5e7eb; padding: 6px 0; }
+                .mobile-tabs button { background: none; border: none; font-size: 0.75rem; padding: 4px 12px; cursor: pointer; color: #6b7280; }
+                .mobile-tabs button:hover { color: #1e40af; }
+                .mobile-overlay { display: none; position: fixed; inset: 0; z-index: 40; background: rgba(0,0,0,0.3); }
+                .mobile-overlay.active { display: block; }
                 .app-layout { height: calc(100vh - 56px); }
+                .starter-grid { grid-template-columns: 1fr; }
             }
         """),
     ),
@@ -372,7 +387,7 @@ def _app_shell(session: dict, active_topic: str = None, lang: str = "en", user: 
     # Recent articles — prioritize user's language
     recent_articles = _get_recent_articles(20, lang)
 
-    # Build chat bubbles — always show welcome if no messages
+    # Build chat bubbles — always show welcome + starter cards if no messages
     msg_bubbles = [ChatMessageBubble(m["role"], m["content"]) for m in messages]
     if not messages:
         msg_bubbles.append(
@@ -380,7 +395,7 @@ def _app_shell(session: dict, active_topic: str = None, lang: str = "en", user: 
                 Div(
                     P(t("welcome_title", lang), cls="font-semibold text-sm"),
                     P(t("welcome_body", lang), cls="text-sm text-muted mt-1"),
-                    P(t("welcome_examples", lang), cls="text-xs text-muted mt-2 italic"),
+                    _starter_cards(session_id, lang),
                     cls="p-3",
                 ),
                 cls="chat-assistant",
@@ -390,6 +405,35 @@ def _app_shell(session: dict, active_topic: str = None, lang: str = "en", user: 
     return (
         Title("NewsGuru"),
         _nav_bar(lang, user),
+        # Mobile tab bar
+        Div(
+            Button(UkIcon("menu", height=14), " ", t("topics", lang), onclick="togglePane('left')", cls="text-xs"),
+            Button(UkIcon("message-circle", height=14), " Chat", cls="text-xs font-semibold"),
+            Button(UkIcon("rss", height=14), " ", t("live_feed", lang), onclick="togglePane('right')", cls="text-xs"),
+            cls="mobile-tabs",
+        ),
+        # Mobile overlay
+        Div(id="mobile-overlay", cls="mobile-overlay", onclick="closePanes()"),
+        Script("""
+            function togglePane(side) {
+                var left = document.getElementById('left-pane');
+                var right = document.getElementById('right-pane');
+                var overlay = document.getElementById('mobile-overlay');
+                if (side === 'left') {
+                    left.classList.toggle('mobile-open');
+                    right.classList.remove('mobile-open');
+                } else {
+                    right.classList.toggle('mobile-open');
+                    left.classList.remove('mobile-open');
+                }
+                overlay.classList.toggle('active', left.classList.contains('mobile-open') || right.classList.contains('mobile-open'));
+            }
+            function closePanes() {
+                document.getElementById('left-pane').classList.remove('mobile-open');
+                document.getElementById('right-pane').classList.remove('mobile-open');
+                document.getElementById('mobile-overlay').classList.remove('active');
+            }
+        """),
         Div(
             # ===== LEFT PANE =====
             Div(
@@ -414,6 +458,7 @@ def _app_shell(session: dict, active_topic: str = None, lang: str = "en", user: 
                     cls="sidebar-section",
                 ),
                 _config_panel(lang) if user else None,
+                id="left-pane",
                 cls="left-pane",
             ),
 
@@ -462,6 +507,22 @@ def _app_shell(session: dict, active_topic: str = None, lang: str = "en", user: 
     )
 
 
+def _starter_cards(session_id: str, lang: str = "en"):
+    """6 clickable starter question cards for new chats."""
+    starters = [t(f"starter_{i}", lang) for i in range(1, 7)]
+    icons = ["newspaper", "cpu", "landmark", "briefcase", "star", "flag"]
+    cards = []
+    for question, icon in zip(starters, icons):
+        cards.append(
+            Div(
+                DivLAligned(UkIcon(icon, height=14), Span(question), cls="gap-2"),
+                cls="starter-card",
+                onclick=f"document.getElementById('chat-input').value={repr(question)}; document.getElementById('chat-input').form.requestSubmit(); this.closest('.starter-grid').remove();",
+            )
+        )
+    return Div(*cards, cls="starter-grid")
+
+
 def _sidebar_topic(topic: dict, active: bool = False, lang: str = "en"):
     count = topic.get("article_count", 0)
     name = topic.get("name_i18n", topic["name"])
@@ -500,16 +561,18 @@ def _trending_widget(topics: list[dict], lang: str = "en"):
 
 
 def _sources_widget(sources: list[dict]):
-    """Show active news sources in left pane."""
+    """Show active news sources in left pane — clickable to ask about source."""
     if not sources:
         return P("No sources yet.", cls="text-xs text-muted px-2")
     items = []
     for s in sources:
+        q = f"What are the latest headlines from {s['name']}?"
         items.append(
             DivFullySpaced(
                 DivLAligned(
-                    Span("", style=f"width:6px;height:6px;border-radius:50%;background:#10b981;display:inline-block;"),
-                    Span(s["name"], cls="text-xs"),
+                    Span("", style="width:6px;height:6px;border-radius:50%;background:#10b981;display:inline-block;"),
+                    A(s["name"], href="#", cls="text-xs no-underline hover:underline",
+                      onclick=f"document.getElementById('chat-input').value={repr(q)}; document.getElementById('chat-input').form.requestSubmit(); return false;"),
                     cls="gap-1",
                 ),
                 Span(str(s.get("article_count", 0)), cls="text-xs text-muted"),
@@ -525,9 +588,12 @@ def _journalist_widget(journalists: list[dict], lang: str = "en"):
     items = []
     for j in journalists[:7]:
         pub = f" ({j['source_name']})" if j.get("source_name") else ""
+        name = j["name"]
+        q = f"What has {name} been writing about recently?"
         items.append(
             DivFullySpaced(
-                Span(f"{j['name']}{pub}", cls="text-xs"),
+                A(f"{name}{pub}", href="#", cls="text-xs no-underline hover:underline",
+                  onclick=f"document.getElementById('chat-input').value={repr(q)}; document.getElementById('chat-input').form.requestSubmit(); return false;"),
                 Span(str(j["article_count"]), cls="text-xs text-muted"),
                 cls="px-2 py-0.5",
             )

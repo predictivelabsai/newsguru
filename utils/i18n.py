@@ -99,6 +99,14 @@ TRANSLATIONS = {
     "no_sources": {"en": "No sources yet.", "et": "Allikaid pole veel."},
     "no_journalists": {"en": "No journalists tracked yet.", "et": "Ajakirjanikke pole veel jälgitud."},
     "no_trending": {"en": "No trending topics yet.", "et": "Populaarseid teemasid pole veel."},
+
+    # Starter question cards
+    "starter_1": {"en": "What are the main news today?", "et": "Millised on tänased peamised uudised?"},
+    "starter_2": {"en": "Latest developments in AI and technology", "et": "Viimased arengud tehisintellektis ja tehnoloogias"},
+    "starter_3": {"en": "What's happening in global politics?", "et": "Mis toimub maailmapoliitikas?"},
+    "starter_4": {"en": "Top business and market headlines", "et": "Peamised äri- ja turguuudised"},
+    "starter_5": {"en": "Most significant events this week", "et": "Selle nädala olulisimad sündmused"},
+    "starter_6": {"en": "What are Estonian media reporting?", "et": "Millest kirjutab Eesti meedia?"},
 }
 
 
