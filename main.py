@@ -699,55 +699,111 @@ def _app_shell(session: dict, active_topic: str = None, lang: str = "en", user: 
 
 def _methodology_html() -> str:
     return """
-<h3>Significance Heatmap Overview</h3>
-<p>The significance heatmap visualizes news coverage from the last 24 hours, based on article volume and average significance scores. It is rendered as an interactive Plotly treemap.</p>
+<nav style="background:#f9fafb; border:1px solid #e5e7eb; border-radius:8px; padding:16px; margin-bottom:24px;">
+<p style="font-weight:600; margin-bottom:8px; font-size:0.9rem;">Contents</p>
+<ol style="font-size:0.85rem; padding-left:20px; margin:0;">
+<li><a href="#significance-heatmap" style="color:#2563eb;">Significance Heatmap</a></li>
+<li><a href="#scoring-methodology" style="color:#2563eb;">7-Factor Scoring Methodology</a></li>
+<li><a href="#expected-distribution" style="color:#2563eb;">Expected Distribution</a></li>
+<li><a href="#philosophy" style="color:#2563eb;">Philosophy</a></li>
+<li><a href="#journalist-map" style="color:#2563eb;">Journalist Map</a></li>
+<li><a href="#data-sources" style="color:#2563eb;">Data Sources</a></li>
+</ol>
+</nav>
+
+<h3 id="significance-heatmap">Significance Heatmap</h3>
+<p>The significance heatmap visualizes news coverage from the last 24 hours, based on article volume and average significance scores. It is rendered as an interactive Plotly treemap where you can click into topic categories to see the source-level breakdown.</p>
 
 <h4>Key Metrics</h4>
 <ul>
 <li><strong>Size of each block:</strong> Proportional to the number of articles in that topic.</li>
-<li><strong>Color gradient:</strong> From light gray (low significance, ~0-3) to dark red (high significance, ~7-10).</li>
+<li><strong>Color gradient:</strong> From light blue (low significance, ~0-3) through amber (~5) to dark red (high significance, ~7-10).</li>
+<li><strong>Drill-down:</strong> Click a topic block to see which publications contribute articles within it.</li>
 <li><strong>Data source:</strong> Aggregated from RSS feeds and web searches across Estonian and English news sources.</li>
 </ul>
 
-<h3>7-Factor Scoring Methodology</h3>
-<p>Each article is scored by an LLM on seven dimensions, combined into a single 0-10 significance score:</p>
+<h3 id="scoring-methodology">7-Factor Scoring Methodology</h3>
+<p>Each article is scored by an LLM (xAI Grok) on seven dimensions, combined into a single 0-10 significance score using a weighted formula:</p>
 
-<table style="width:100%; border-collapse:collapse; font-size:0.85rem;">
-<tr style="border-bottom:2px solid #e5e7eb;"><th style="text-align:left;padding:6px;">Factor</th><th style="text-align:left;padding:6px;">Weight</th><th style="text-align:left;padding:6px;">Description</th></tr>
-<tr style="border-bottom:1px solid #f3f4f6;"><td style="padding:6px;"><strong>Scale</strong></td><td>4/20</td><td>How broadly does the event affect people?</td></tr>
-<tr style="border-bottom:1px solid #f3f4f6;"><td style="padding:6px;"><strong>Impact</strong></td><td>4/20</td><td>How strong is the immediate, tangible effect?</td></tr>
-<tr style="border-bottom:1px solid #f3f4f6;"><td style="padding:6px;"><strong>Novelty</strong></td><td>3/20</td><td>How unique and unexpected is this event?</td></tr>
-<tr style="border-bottom:1px solid #f3f4f6;"><td style="padding:6px;"><strong>Potential</strong></td><td>3/20</td><td>How likely is this to shape the future?</td></tr>
-<tr style="border-bottom:1px solid #f3f4f6;"><td style="padding:6px;"><strong>Legacy</strong></td><td>3/20</td><td>How likely to be remembered as a turning point?</td></tr>
-<tr style="border-bottom:1px solid #f3f4f6;"><td style="padding:6px;"><strong>Positivity</strong></td><td>1/20</td><td>Counteracts negativity bias in news coverage.</td></tr>
-<tr><td style="padding:6px;"><strong>Credibility</strong></td><td>2/20</td><td>How trustworthy and well-sourced is the report?</td></tr>
+<table style="width:100%; border-collapse:collapse; font-size:0.85rem; margin:12px 0;">
+<tr style="border-bottom:2px solid #e5e7eb;"><th style="text-align:left;padding:6px;">Factor</th><th style="text-align:left;padding:6px;">Weight</th><th style="text-align:left;padding:6px;">Description</th><th style="text-align:left;padding:6px;">Example</th></tr>
+<tr style="border-bottom:1px solid #f3f4f6;"><td style="padding:6px;"><strong>Scale</strong></td><td>4/20</td><td>How broadly does the event affect people?</td><td style="color:#6b7280;">Local crime = 2, Global pandemic = 9</td></tr>
+<tr style="border-bottom:1px solid #f3f4f6;"><td style="padding:6px;"><strong>Impact</strong></td><td>4/20</td><td>How strong is the immediate, tangible effect?</td><td style="color:#6b7280;">Minor policy tweak = 2, Market crash = 9</td></tr>
+<tr style="border-bottom:1px solid #f3f4f6;"><td style="padding:6px;"><strong>Novelty</strong></td><td>3/20</td><td>How unique and unexpected is this event?</td><td style="color:#6b7280;">Quarterly earnings = 2, First AI-written law = 9</td></tr>
+<tr style="border-bottom:1px solid #f3f4f6;"><td style="padding:6px;"><strong>Potential</strong></td><td>3/20</td><td>How likely is this to shape the future?</td><td style="color:#6b7280;">Celebrity gossip = 1, Climate treaty = 8</td></tr>
+<tr style="border-bottom:1px solid #f3f4f6;"><td style="padding:6px;"><strong>Legacy</strong></td><td>3/20</td><td>How likely to be remembered as a turning point?</td><td style="color:#6b7280;">Sports result = 1, Moon landing = 10</td></tr>
+<tr style="border-bottom:1px solid #f3f4f6;"><td style="padding:6px;"><strong>Positivity</strong></td><td>1/20</td><td>Counteracts negativity bias in news.</td><td style="color:#6b7280;">War = 0, Breakthrough cure = 9</td></tr>
+<tr><td style="padding:6px;"><strong>Credibility</strong></td><td>2/20</td><td>How trustworthy is the source?</td><td style="color:#6b7280;">Anonymous blog = 2, Reuters with data = 9</td></tr>
 </table>
 
+<p style="font-size:0.85rem;"><strong>Formula:</strong> <code>significance = (scale*4 + impact*4 + novelty*3 + potential*3 + legacy*3 + positivity*1 + credibility*2) / 20</code></p>
+
 <h4>Why Positivity?</h4>
-<p>News sources overreport negative events. This factor (weight 1/20) brings the ratio closer to 50:50 in the high-significance range, surfacing scientific discoveries and tech advancements alongside wars and disasters.</p>
+<p>News sources have a well-documented negativity bias: they overreport negative events and underreport positive ones. This factor (weight 1/20) brings the ratio closer to 50:50 in the high-significance range. Without it, scores 5+ would mostly consist of wars and disasters. With it, scientific discoveries and tech advancements also surface.</p>
 
-<h3>Expected Distribution</h3>
+<h3 id="expected-distribution">Expected Distribution</h3>
+<table style="width:100%; border-collapse:collapse; font-size:0.85rem; margin:12px 0;">
+<tr style="border-bottom:2px solid #e5e7eb;"><th style="text-align:left;padding:6px;">Score</th><th style="text-align:left;padding:6px;">%</th><th style="text-align:left;padding:6px;">Typical Content</th><th style="text-align:left;padding:6px;">Example</th></tr>
+<tr style="border-bottom:1px solid #f3f4f6;"><td style="padding:6px;"><strong>0-2</strong></td><td>~60%</td><td>Sports results, entertainment, local news</td><td style="color:#6b7280;">League match recap, celebrity birthday</td></tr>
+<tr style="border-bottom:1px solid #f3f4f6;"><td style="padding:6px;"><strong>3-4</strong></td><td>~25%</td><td>Regional politics, business earnings</td><td style="color:#6b7280;">Company quarterly report, city council vote</td></tr>
+<tr style="border-bottom:1px solid #f3f4f6;"><td style="padding:6px;"><strong>5-6</strong></td><td>~10%</td><td>Significant national events, major policy shifts</td><td style="color:#6b7280;">Central bank rate change, major trial verdict</td></tr>
+<tr style="border-bottom:1px solid #f3f4f6;"><td style="padding:6px;"><strong>7-8</strong></td><td>~4%</td><td>Major world events, breakthroughs</td><td style="color:#6b7280;">Naval blockade, AI regulation passed</td></tr>
+<tr><td style="padding:6px;"><strong>9-10</strong></td><td>~1%</td><td>Once-in-a-decade events, paradigm shifts</td><td style="color:#6b7280;">Start of major war, first contact</td></tr>
+</table>
+<p style="font-size:0.85rem;">On a typical day, only 5-15 articles score above 5. If nothing significant happens, the top of the feed is intentionally short.</p>
+
+<h3 id="philosophy">Philosophy</h3>
+<p><strong>Significance is objective</strong> — it measures how much an event affects humanity as a whole. This is different from <em>importance</em>, which is subjective and personal. News about a family member's health is important to you but not significant to the world. A naval blockade in the Strait of Hormuz is significant to everyone, whether they know it or not.</p>
+<p>The goal is to cut through sensationalist noise and surface only what truly matters. Every news site has some notion of "top stories", but they optimize for clicks. We optimize for significance.</p>
+
+<h3 id="journalist-map">Journalist Map</h3>
+<p>The journalist map visualizes reporter activity over the last 24 hours as an interactive treemap, structured as <strong>Publication -> Journalist</strong>.</p>
+
+<h4>How to Read the Map</h4>
 <ul>
-<li><strong>0-2:</strong> Sports results, entertainment, minor local news (~60% of articles)</li>
-<li><strong>3-4:</strong> Regional politics, business earnings, routine policy changes (~25%)</li>
-<li><strong>5-6:</strong> Significant national events, major policy shifts, scientific findings (~10%)</li>
-<li><strong>7-8:</strong> Major world events, landmark decisions, breakthroughs (~4%)</li>
-<li><strong>9-10:</strong> Once-in-a-decade events, paradigm shifts (~1%)</li>
+<li><strong>Block size:</strong> Proportional to the number of articles published by that journalist in the last 24 hours. A larger block means more articles.</li>
+<li><strong>Color:</strong> Represents activity level — cooler blues for lower output, warmer ambers and reds for highly active journalists.</li>
+<li><strong>Hierarchy:</strong> Top level shows publications (ERR, Postimees, Bloomberg, BBC News, etc.). Click to drill into individual journalists within each publication.</li>
+<li><strong>Drill-down:</strong> Click any journalist name in the list below the map to trigger a chat query that fetches their recent articles with source, significance score, and sentiment rating.</li>
 </ul>
 
-<h3>Philosophy</h3>
-<p><strong>Significance is objective</strong> — it measures how much an event affects humanity as a whole. This is different from importance, which is subjective. If nothing significant happens, the feed is short by design.</p>
-
-<h3>Journalist Map</h3>
-<p>The journalist map visualizes reporter activity over the last 24 hours, structured as <strong>Publication -> Journalist</strong>.</p>
+<h4>Data Extraction</h4>
+<p>Journalist names are automatically extracted from RSS feeds and article HTML metadata. The extraction pipeline includes several cleaning steps:</p>
 <ul>
-<li><strong>Block size:</strong> Number of articles by that journalist.</li>
-<li><strong>Color:</strong> Activity level (more articles = warmer color).</li>
-<li><strong>Drill-down:</strong> Click any journalist name to see their recent articles with source, significance score, and sentiment.</li>
+<li><strong>Role suffix removal:</strong> Strips Estonian and English role suffixes like "ajakirjanik" (journalist), "fotograaf" (photographer), "toimetaja" (editor), "correspondent", "reporter".</li>
+<li><strong>Non-person filtering:</strong> Removes entries that are URLs, email addresses, organization names (e.g., "ERR", "BBC News", "Postimees"), pipe-separated metadata strings (e.g., "uudised | ERR"), and single-word entries.</li>
+<li><strong>Deduplication:</strong> Normalizes names and removes duplicates within the same source (e.g., "Aet Rebane" and "Aet Rebane ajakirjanik" are merged).</li>
+<li><strong>Minimum threshold:</strong> Only journalists with 2+ articles in the display window are shown on the map.</li>
 </ul>
-<p>Journalist names are extracted from RSS feeds and article metadata. Names are cleaned to remove role suffixes (e.g., "ajakirjanik", "editor") and non-person entries (URLs, organization names) are filtered out.</p>
 
-<p style="color:#6b7280; margin-top:20px;"><em>Inspired by <a href="https://www.newsminimalist.com/about" target="_blank" style="color:#3b82f6;">News Minimalist</a>. Powered by xAI Grok.</em></p>
+<h4>Example: Reading a Journalist Entry</h4>
+<div style="background:#f9fafb; border:1px solid #e5e7eb; border-radius:8px; padding:12px; margin:12px 0; font-size:0.85rem;">
+<p style="margin:0 0 4px;"><span style="background:#f59e0b;color:white;padding:1px 6px;border-radius:4px;font-size:0.7rem;font-weight:700;">5.5</span> <strong>Alex Longley</strong> <span style="color:#6b7280;">Bloomberg (3 articles)</span></p>
+<p style="margin:0; color:#6b7280;">This journalist published 3 articles via Bloomberg in the last 24 hours, with an average significance score of 5.5 (moderate-high). Clicking the name would show those articles with individual scores and sentiment.</p>
+</div>
+
+<h4>Limitations</h4>
+<ul>
+<li>Some RSS feeds only provide section names (e.g., "sport | ERR") instead of real journalist names — these are filtered out.</li>
+<li>Paywalled sources (WSJ, FT) may have limited author metadata in their RSS feeds.</li>
+<li>The map refreshes with each page load; it does not auto-update in real-time.</li>
+</ul>
+
+<h3 id="data-sources">Data Sources</h3>
+<p>NewsGuru aggregates from 7 news sources across 2 languages:</p>
+<table style="width:100%; border-collapse:collapse; font-size:0.85rem; margin:12px 0;">
+<tr style="border-bottom:2px solid #e5e7eb;"><th style="text-align:left;padding:6px;">Source</th><th style="text-align:left;padding:6px;">Language</th><th style="text-align:left;padding:6px;">Type</th></tr>
+<tr style="border-bottom:1px solid #f3f4f6;"><td style="padding:6px;">ERR</td><td>Estonian</td><td>Public broadcaster</td></tr>
+<tr style="border-bottom:1px solid #f3f4f6;"><td style="padding:6px;">Postimees</td><td>Estonian</td><td>Daily newspaper</td></tr>
+<tr style="border-bottom:1px solid #f3f4f6;"><td style="padding:6px;">Eesti Paevaleht</td><td>Estonian</td><td>Daily newspaper</td></tr>
+<tr style="border-bottom:1px solid #f3f4f6;"><td style="padding:6px;">BBC News</td><td>English</td><td>Public broadcaster</td></tr>
+<tr style="border-bottom:1px solid #f3f4f6;"><td style="padding:6px;">Bloomberg</td><td>English</td><td>Financial news</td></tr>
+<tr style="border-bottom:1px solid #f3f4f6;"><td style="padding:6px;">Financial Times</td><td>English</td><td>Financial newspaper</td></tr>
+<tr><td style="padding:6px;">Wall Street Journal</td><td>English</td><td>Financial newspaper</td></tr>
+</table>
+<p style="font-size:0.85rem;">Articles are fetched via RSS every 5 minutes, with full text extracted using newspaper4k. Additional articles are discovered via Tavily and Exa web search APIs.</p>
+
+<p style="color:#6b7280; margin-top:24px;"><em>Inspired by <a href="https://www.newsminimalist.com/about" target="_blank" style="color:#3b82f6;">News Minimalist</a>. Powered by xAI Grok.</em></p>
 """
 
 
