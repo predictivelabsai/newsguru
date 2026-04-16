@@ -199,6 +199,13 @@ async def run_feed_scheduler(
                 except Exception as e:
                     logger.error(f"Tavily discovery error: {e}")
 
+            # Topic modeling — cluster articles into stories
+            try:
+                from agents.topic_modeler import run_topic_modeling
+                await run_topic_modeling()
+            except Exception as e:
+                logger.error(f"Topic modeling error: {e}")
+
         except Exception as e:
             logger.error(f"Feed scheduler cycle {cycle} error: {e}")
 

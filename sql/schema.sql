@@ -158,6 +158,25 @@ CREATE TABLE IF NOT EXISTS newsguru.trending_snapshots (
     computed_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Story clusters (topic modeling — groups related articles across sources)
+CREATE TABLE IF NOT EXISTS newsguru.story_clusters (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    cluster_label   TEXT NOT NULL,
+    summary         TEXT,
+    article_count   INTEGER NOT NULL DEFAULT 0,
+    avg_significance REAL,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS newsguru.article_clusters (
+    article_id      UUID NOT NULL REFERENCES newsguru.articles(id) ON DELETE CASCADE,
+    cluster_id      UUID NOT NULL REFERENCES newsguru.story_clusters(id) ON DELETE CASCADE,
+    PRIMARY KEY (article_id, cluster_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_story_clusters_created ON newsguru.story_clusters(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_article_clusters_cluster ON newsguru.article_clusters(cluster_id);
+
 -- News feed history (autoincrement, for long-term tracking)
 CREATE TABLE IF NOT EXISTS newsguru.news_feed (
     id              BIGSERIAL PRIMARY KEY,

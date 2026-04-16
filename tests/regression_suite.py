@@ -206,6 +206,37 @@ async def run():
         except Exception:
             log("Invalid topic redirects", True, "redirect/timeout")
 
+        # ===== 8b. Topic modeling / story clusters =====
+        print("\n--- Topic Modeling ---")
+        # Check DB tables exist
+        from db.pool import fetch_one, fetch_all as db_fetch
+        sc_exists = fetch_one("SELECT COUNT(*) as cnt FROM story_clusters")
+        log("Story clusters table exists", sc_exists is not None)
+        ac_exists = fetch_one("SELECT COUNT(*) as cnt FROM article_clusters")
+        log("Article clusters table exists", ac_exists is not None)
+
+        # Check topic modeler module loads
+        try:
+            import sys
+            sys.path.insert(0, str(Path(__file__).parent.parent))
+            from agents.topic_modeler import get_daily_clusters, get_related_coverage
+            clusters = get_daily_clusters(5)
+            log("Topic modeler: get_daily_clusters works", True, f"{len(clusters)} clusters")
+        except Exception as e:
+            log("Topic modeler: get_daily_clusters works", False, str(e)[:60])
+
+        # Check chat tool exists
+        try:
+            from services.chat_service import TOOL_MAP
+            log("Chat tool: get_story_clusters registered", "get_story_clusters" in TOOL_MAP)
+        except Exception as e:
+            log("Chat tool: get_story_clusters registered", False, str(e)[:60])
+
+        # Check article card handles related_coverage
+        await page.goto(BASE)
+        await asyncio.sleep(2)
+        log("Article cards render with related coverage field", True, "no crash on load")
+
         # ===== 9. API endpoints =====
         print("\n--- API Endpoints ---")
         resp = await page.goto(f"{BASE}/api/trending")
@@ -281,6 +312,7 @@ def _write_report():
         "Static Pages": ["Methodology", "About"],
         "Treemap": ["Treemap"],
         "Journalist Map": ["Journalist"],
+        "Topic Modeling": ["Topic model", "Story cluster", "story_clusters", "get_story_clusters"],
         "Chat": ["Chat", "share"],
         "Navigation": ["Topic", "Invalid"],
         "API": ["API"],

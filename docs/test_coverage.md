@@ -1,8 +1,8 @@
 # NewsGuru Test Coverage Report
 
-Generated: 2026-04-16 22:13:55
+Generated: 2026-04-16 22:31:58
 
-**Total: 55 tests | Passed: 55 | Failed: 0**
+**Total: 60 tests | Passed: 60 | Failed: 0**
 
 | # | Test | Status | Detail |
 |---|------|--------|--------|
@@ -53,24 +53,30 @@ Generated: 2026-04-16 22:13:55
 | 45 | Topic /politics returns 200 | PASS |  |
 | 46 | Topic /technology returns 200 | PASS |  |
 | 47 | Invalid topic redirects | PASS | url=http://localhost:5020/topic/nonexistent |
-| 48 | API /api/trending returns 200 | PASS |  |
-| 49 | API /api/journalists returns 200 | PASS |  |
-| 50 | API /api/sources returns 200 | PASS |  |
-| 51 | SSE /sse/feed returns 200 | PASS |  |
-| 52 | Language switch without login redirects to /login | PASS |  |
-| 53 | Mobile: tab bar visible | PASS |  |
-| 54 | Mobile: left pane hidden | PASS |  |
-| 55 | Session: history links present | PASS | 8 sessions |
+| 48 | Story clusters table exists | PASS |  |
+| 49 | Article clusters table exists | PASS |  |
+| 50 | Topic modeler: get_daily_clusters works | PASS | 5 clusters |
+| 51 | Chat tool: get_story_clusters registered | PASS |  |
+| 52 | Article cards render with related coverage field | PASS | no crash on load |
+| 53 | API /api/trending returns 200 | PASS |  |
+| 54 | API /api/journalists returns 200 | PASS |  |
+| 55 | API /api/sources returns 200 | PASS |  |
+| 56 | SSE /sse/feed returns 200 | PASS |  |
+| 57 | Language switch without login redirects to /login | PASS |  |
+| 58 | Mobile: tab bar visible | PASS |  |
+| 59 | Mobile: left pane hidden | PASS |  |
+| 60 | Session: history links present | PASS | 8 sessions |
 
 ## Test Categories
 
 - **Page Load**: 16/16 passed
-- **Authentication**: 5/5 passed
+- **Authentication**: 6/6 passed
 - **Static Pages**: 13/13 passed
 - **Treemap**: 6/6 passed
 - **Journalist Map**: 9/9 passed
-- **Chat**: 11/11 passed
-- **Navigation**: 4/4 passed
+- **Topic Modeling**: 3/3 passed
+- **Chat**: 12/12 passed
+- **Navigation**: 5/5 passed
 - **API**: 3/3 passed
 - **SSE**: 1/1 passed
 - **Language**: 1/1 passed

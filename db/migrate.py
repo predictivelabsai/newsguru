@@ -118,11 +118,37 @@ def add_news_feed_table():
     print("News feed table created.")
 
 
+def add_story_clusters_tables():
+    """Create story clusters tables."""
+    engine = get_engine()
+    with engine.connect() as conn:
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS newsguru.story_clusters (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                cluster_label TEXT NOT NULL,
+                summary TEXT,
+                article_count INTEGER NOT NULL DEFAULT 0,
+                avg_significance REAL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+            CREATE TABLE IF NOT EXISTS newsguru.article_clusters (
+                article_id UUID NOT NULL REFERENCES newsguru.articles(id) ON DELETE CASCADE,
+                cluster_id UUID NOT NULL REFERENCES newsguru.story_clusters(id) ON DELETE CASCADE,
+                PRIMARY KEY (article_id, cluster_id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_story_clusters_created ON newsguru.story_clusters(created_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_article_clusters_cluster ON newsguru.article_clusters(cluster_id);
+        """))
+        conn.commit()
+    print("Story clusters tables created.")
+
+
 if __name__ == "__main__":
     run_schema()
     add_translation_columns()
     add_significance_table()
     add_news_feed_table()
+    add_story_clusters_tables()
     seed_sources()
     seed_topics()
     print("Migration complete.")

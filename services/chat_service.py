@@ -110,12 +110,31 @@ def get_recent_articles(topic: str = "", limit: int = 10) -> str:
     return "\n".join(lines)
 
 
-TOOLS = [search_tavily, search_exa, get_recent_articles]
+@tool
+def get_story_clusters(limit: int = 8) -> str:
+    """Get today's top news stories grouped by topic, showing how different publications cover the same event with their sentiment scores. Use this to compare multi-source coverage."""
+    from agents.topic_modeler import get_daily_clusters
+    clusters = get_daily_clusters(limit)
+    if not clusters:
+        return "No story clusters found. Try get_recent_articles instead."
+    lines = []
+    for c in clusters:
+        lines.append(f"\n## {c['cluster_label']} ({c['article_count']} sources)")
+        if c.get("summary"):
+            lines.append(f"  {c['summary']}")
+        for a in c.get("articles", []):
+            sent = f" [Sentiment: {a.get('sentiment_label', '')} ({a['sentiment_score']:+.2f})]" if a.get("sentiment_score") is not None else ""
+            lines.append(f"  - {a['source_name']}: {a['title']}{sent}\n    URL: {a['url']}")
+    return "\n".join(lines)
+
+
+TOOLS = [search_tavily, search_exa, get_recent_articles, get_story_clusters]
 TOOL_MAP = {t.name: t for t in TOOLS}
 TOOL_LABELS = {
     "search_tavily": "Searching Tavily...",
     "search_exa": "Searching Exa...",
     "get_recent_articles": "Checking articles...",
+    "get_story_clusters": "Analyzing topic clusters...",
 }
 
 
@@ -158,10 +177,11 @@ You have access to tools:
 - search_tavily: Search web for latest news via Tavily
 - search_exa: Neural search via Exa for specific articles
 - get_recent_articles: Query the NewsGuru article database by topic
+- get_story_clusters: Get multi-source coverage — same story from different publications with sentiment comparison
 
-Use tools when the user asks about current events or needs fresh info. Always cite sources with titles and URLs.
+IMPORTANT: When showing news, always try to show multi-source coverage. Use get_story_clusters to find how different publications cover the same event. Show source name, sentiment score, and URL for each.
 
-Format your responses with clear structure using markdown: headers (##), bold (**text**), bullet lists, and links [title](url).
+Format your responses with clear structure using markdown: headers (##), bold (**text**), bullet lists, and links [title](url). For multi-source topics, show each source's coverage and sentiment side by side.
 
 RECENT ARTICLES IN DATABASE:
 {context}"""

@@ -1089,8 +1089,8 @@ def _get_active_sources() -> list[dict]:
     """)
 
 def _get_recent_articles(limit: int = 20, lang: str = "en") -> list[dict]:
-    """Get recent articles, prioritizing significance then user's language."""
-    return fetch_all("""
+    """Get recent articles with related coverage from topic clusters."""
+    articles = fetch_all("""
         SELECT a.id, a.title, a.title_en, a.title_et, a.language, a.url, a.author, a.published_at,
                s.name AS source_name,
                asent.label AS sentiment_label, asent.score AS sentiment_score,
@@ -1104,6 +1104,14 @@ def _get_recent_articles(limit: int = 20, lang: str = "en") -> list[dict]:
                  a.created_at DESC
         LIMIT :limit
     """, {"limit": limit, "lang": lang})
+    # Attach related coverage from story clusters
+    for a in articles:
+        try:
+            from agents.topic_modeler import get_related_coverage
+            a["related_coverage"] = get_related_coverage(str(a["id"]))
+        except Exception:
+            a["related_coverage"] = []
+    return articles
 
 def _group_topics(topics: list[dict], lang: str = "en") -> list[dict]:
     groups = {
