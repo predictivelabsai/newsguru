@@ -63,9 +63,37 @@ def add_translation_columns():
     print("Translation columns added.")
 
 
+def add_significance_table():
+    """Create article_significance table if it doesn't exist."""
+    engine = get_engine()
+    with engine.connect() as conn:
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS newsguru.article_significance (
+                id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                article_id      UUID NOT NULL UNIQUE REFERENCES newsguru.articles(id) ON DELETE CASCADE,
+                significance_score REAL NOT NULL,
+                scale           SMALLINT NOT NULL DEFAULT 0,
+                impact          SMALLINT NOT NULL DEFAULT 0,
+                novelty         SMALLINT NOT NULL DEFAULT 0,
+                potential       SMALLINT NOT NULL DEFAULT 0,
+                legacy          SMALLINT NOT NULL DEFAULT 0,
+                positivity      SMALLINT NOT NULL DEFAULT 0,
+                credibility     SMALLINT NOT NULL DEFAULT 0,
+                reasoning       TEXT,
+                model_used      VARCHAR(128),
+                scored_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+            CREATE INDEX IF NOT EXISTS idx_article_significance_score
+                ON newsguru.article_significance(significance_score DESC);
+        """))
+        conn.commit()
+    print("Significance table created.")
+
+
 if __name__ == "__main__":
     run_schema()
     add_translation_columns()
+    add_significance_table()
     seed_sources()
     seed_topics()
     print("Migration complete.")

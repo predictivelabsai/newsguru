@@ -593,15 +593,19 @@ def _get_active_sources() -> list[dict]:
     """)
 
 def _get_recent_articles(limit: int = 20, lang: str = "en") -> list[dict]:
-    """Get recent articles, prioritizing the user's language."""
+    """Get recent articles, prioritizing significance then user's language."""
     return fetch_all("""
         SELECT a.id, a.title, a.title_en, a.title_et, a.language, a.url, a.author, a.published_at,
                s.name AS source_name,
-               asent.label AS sentiment_label, asent.score AS sentiment_score
+               asent.label AS sentiment_label, asent.score AS sentiment_score,
+               asig.significance_score
         FROM articles a
         LEFT JOIN sources s ON s.id = a.source_id
         LEFT JOIN article_sentiments asent ON asent.article_id = a.id
-        ORDER BY CASE WHEN a.language = :lang THEN 0 ELSE 1 END, a.created_at DESC
+        LEFT JOIN article_significance asig ON asig.article_id = a.id
+        ORDER BY COALESCE(asig.significance_score, 0) DESC,
+                 CASE WHEN a.language = :lang THEN 0 ELSE 1 END,
+                 a.created_at DESC
         LIMIT :limit
     """, {"limit": limit, "lang": lang})
 

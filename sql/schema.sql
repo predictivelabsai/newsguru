@@ -66,6 +66,25 @@ CREATE TABLE IF NOT EXISTS newsguru.article_sentiments (
     scored_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Article significance (7-factor scoring)
+CREATE TABLE IF NOT EXISTS newsguru.article_significance (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    article_id      UUID NOT NULL UNIQUE REFERENCES newsguru.articles(id) ON DELETE CASCADE,
+    significance_score REAL NOT NULL,
+    scale           SMALLINT NOT NULL DEFAULT 0,
+    impact          SMALLINT NOT NULL DEFAULT 0,
+    novelty         SMALLINT NOT NULL DEFAULT 0,
+    potential       SMALLINT NOT NULL DEFAULT 0,
+    legacy          SMALLINT NOT NULL DEFAULT 0,
+    positivity      SMALLINT NOT NULL DEFAULT 0,
+    credibility     SMALLINT NOT NULL DEFAULT 0,
+    reasoning       TEXT,
+    model_used      VARCHAR(128),
+    scored_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_article_significance_score ON newsguru.article_significance(significance_score DESC);
+
 -- Topics
 CREATE TABLE IF NOT EXISTS newsguru.topics (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),

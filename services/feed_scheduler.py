@@ -72,6 +72,12 @@ async def _process_article(raw: dict, article_queue: asyncio.Queue, topic_queues
     from services.translate_service import translate_article_title
     await translate_article_title(article_id, raw["title"], raw.get("language", "en"))
 
+    # Score significance (7-factor)
+    from services.significance_service import score_significance
+    source_name_for_scoring = fetch_one("SELECT name FROM sources WHERE id = :id", {"id": source_id})
+    src_name = source_name_for_scoring["name"] if source_name_for_scoring else ""
+    await score_significance(article_id, raw["title"], raw.get("summary", ""), src_name)
+
     # Build article dict for SSE push
     article_for_push = _build_push_article(article_id)
     if article_for_push:
@@ -94,10 +100,12 @@ def _build_push_article(article_id: str) -> dict | None:
     return fetch_one("""
         SELECT a.id, a.title, a.title_en, a.title_et, a.language, a.url, a.author, a.published_at,
                s.name AS source_name,
-               asent.label AS sentiment_label, asent.score AS sentiment_score
+               asent.label AS sentiment_label, asent.score AS sentiment_score,
+               asig.significance_score
         FROM articles a
         LEFT JOIN sources s ON s.id = a.source_id
         LEFT JOIN article_sentiments asent ON asent.article_id = a.id
+        LEFT JOIN article_significance asig ON asig.article_id = a.id
         WHERE a.id = :id
     """, {"id": article_id})
 
