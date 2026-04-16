@@ -165,6 +165,24 @@ def load_session(session_id: str, sess):
     return _app_shell(chat_sess, lang=lang, user=user)
 
 
+@rt("/methodology")
+def methodology_page(sess):
+    """Static methodology page."""
+    lang = get_lang(sess)
+    user = _get_session_user(sess)
+    return (
+        Title("NewsGuru - Methodology"),
+        _nav_bar(lang, user),
+        Container(
+            Div(
+                H2("Significance Scoring Methodology", cls="text-2xl font-bold mb-4"),
+                Div(NotStr(_methodology_html()), cls="text-sm space-y-3"),
+                cls="max-w-3xl mx-auto py-8",
+            ),
+        ),
+    )
+
+
 @rt("/set-lang/{lang_code}")
 def set_language(lang_code: str, sess):
     """Switch UI language — requires login."""
@@ -291,6 +309,11 @@ async def _chat_stream(session_id: str, messages: list[dict], topic_slug: str = 
             INSERT INTO chat_messages (session_id, role, content)
             VALUES (:sid, 'assistant', :content)
         """, {"sid": session_id, "content": full_response})
+    # Share widget + re-enable input
+    yield sse_message(
+        Div(_share_widget(session_id), hx_swap_oob="beforeend:#chat-messages"),
+        event="token",
+    )
     yield sse_message(
         Script("document.getElementById('chat-input').disabled=false; document.getElementById('chat-input').focus();"),
         event="token",
@@ -319,6 +342,10 @@ async def _treemap_stream(session_id: str):
         INSERT INTO chat_messages (session_id, role, content)
         VALUES (:sid, 'assistant', :content)
     """, {"sid": session_id, "content": full_html})
+    yield sse_message(
+        Div(_share_widget(session_id), hx_swap_oob="beforeend:#chat-messages"),
+        event="token",
+    )
     yield sse_message(
         Script("document.getElementById('chat-input').disabled=false; document.getElementById('chat-input').focus();"),
         event="token",
@@ -554,6 +581,11 @@ def _app_shell(session: dict, active_topic: str = None, lang: str = "en", user: 
                     _journalist_widget(_get_top_journalists(), lang),
                     cls="sidebar-section",
                 ),
+                # Methodology link
+                A(
+                    DivLAligned(UkIcon("book-open", height=14), Span("Methodology", cls="text-xs"), cls="gap-1"),
+                    href="/methodology", target="_blank", cls="no-underline px-2 py-1 text-xs text-muted hover:underline",
+                ),
                 _config_panel(lang) if user else None,
                 id="left-pane",
                 cls="left-pane",
@@ -604,8 +636,70 @@ def _app_shell(session: dict, active_topic: str = None, lang: str = "en", user: 
     )
 
 
+def _methodology_html() -> str:
+    return """
+<h3>Significance Heatmap Overview</h3>
+<p>The significance heatmap visualizes news coverage from the last 24 hours, based on article volume and average significance scores. It is rendered as an interactive Plotly treemap.</p>
+
+<h4>Key Metrics</h4>
+<ul>
+<li><strong>Size of each block:</strong> Proportional to the number of articles in that topic.</li>
+<li><strong>Color gradient:</strong> From light gray (low significance, ~0-3) to dark red (high significance, ~7-10).</li>
+<li><strong>Data source:</strong> Aggregated from RSS feeds and web searches across Estonian and English news sources.</li>
+</ul>
+
+<h3>7-Factor Scoring Methodology</h3>
+<p>Each article is scored by an LLM on seven dimensions, combined into a single 0-10 significance score:</p>
+
+<table style="width:100%; border-collapse:collapse; font-size:0.85rem;">
+<tr style="border-bottom:2px solid #e5e7eb;"><th style="text-align:left;padding:6px;">Factor</th><th style="text-align:left;padding:6px;">Weight</th><th style="text-align:left;padding:6px;">Description</th></tr>
+<tr style="border-bottom:1px solid #f3f4f6;"><td style="padding:6px;"><strong>Scale</strong></td><td>4/20</td><td>How broadly does the event affect people?</td></tr>
+<tr style="border-bottom:1px solid #f3f4f6;"><td style="padding:6px;"><strong>Impact</strong></td><td>4/20</td><td>How strong is the immediate, tangible effect?</td></tr>
+<tr style="border-bottom:1px solid #f3f4f6;"><td style="padding:6px;"><strong>Novelty</strong></td><td>3/20</td><td>How unique and unexpected is this event?</td></tr>
+<tr style="border-bottom:1px solid #f3f4f6;"><td style="padding:6px;"><strong>Potential</strong></td><td>3/20</td><td>How likely is this to shape the future?</td></tr>
+<tr style="border-bottom:1px solid #f3f4f6;"><td style="padding:6px;"><strong>Legacy</strong></td><td>3/20</td><td>How likely to be remembered as a turning point?</td></tr>
+<tr style="border-bottom:1px solid #f3f4f6;"><td style="padding:6px;"><strong>Positivity</strong></td><td>1/20</td><td>Counteracts negativity bias in news coverage.</td></tr>
+<tr><td style="padding:6px;"><strong>Credibility</strong></td><td>2/20</td><td>How trustworthy and well-sourced is the report?</td></tr>
+</table>
+
+<h4>Why Positivity?</h4>
+<p>News sources overreport negative events. This factor (weight 1/20) brings the ratio closer to 50:50 in the high-significance range, surfacing scientific discoveries and tech advancements alongside wars and disasters.</p>
+
+<h3>Expected Distribution</h3>
+<ul>
+<li><strong>0-2:</strong> Sports results, entertainment, minor local news (~60% of articles)</li>
+<li><strong>3-4:</strong> Regional politics, business earnings, routine policy changes (~25%)</li>
+<li><strong>5-6:</strong> Significant national events, major policy shifts, scientific findings (~10%)</li>
+<li><strong>7-8:</strong> Major world events, landmark decisions, breakthroughs (~4%)</li>
+<li><strong>9-10:</strong> Once-in-a-decade events, paradigm shifts (~1%)</li>
+</ul>
+
+<h3>Philosophy</h3>
+<p><strong>Significance is objective</strong> — it measures how much an event affects humanity as a whole. This is different from importance, which is subjective. If nothing significant happens, the feed is short by design.</p>
+
+<p style="color:#6b7280; margin-top:20px;"><em>Inspired by <a href="https://www.newsminimalist.com/about" target="_blank" style="color:#3b82f6;">News Minimalist</a>. Powered by xAI Grok.</em></p>
+"""
+
+
+def _share_widget(session_id: str):
+    """Copy-to-clipboard share link widget shown after each response."""
+    url = f"https://newsguru.chat/session/{session_id}"
+    return Div(
+        DivLAligned(
+            UkIcon("share-2", height=12),
+            A("Share this chat", href=f"/session/{session_id}", cls="text-xs no-underline", target="_blank"),
+            Button("Copy link", cls="uk-button uk-button-default uk-button-small",
+                   style="padding:1px 8px; font-size:0.65rem;",
+                   onclick=f"navigator.clipboard.writeText('{url}'); this.textContent='Copied!'; setTimeout(()=>this.textContent='Copy link',2000);"),
+            cls="gap-2",
+        ),
+        cls="py-1 px-4",
+        style="color:#9ca3af; font-size:0.7rem;",
+    )
+
+
 def _chat_history_items(active_session_id: str) -> list:
-    """Recent chat sessions for the left pane."""
+    """Recent chat sessions for the left pane — compact."""
     sessions = fetch_all("""
         SELECT id, title, created_at FROM chat_sessions
         ORDER BY updated_at DESC LIMIT 8
@@ -613,21 +707,16 @@ def _chat_history_items(active_session_id: str) -> list:
     items = []
     for s in sessions:
         is_active = str(s["id"]) == active_session_id
-        ts = s["created_at"].strftime("%b %d, %H:%M") if hasattr(s["created_at"], "strftime") else ""
+        ts = s["created_at"].strftime("%H:%M") if hasattr(s["created_at"], "strftime") else ""
+        title = s["title"][:22] + ("..." if len(s["title"]) > 22 else "")
         items.append(
             A(
-                DivLAligned(
-                    UkIcon("message-circle", height=12),
-                    Div(
-                        Span(s["title"][:25] + ("..." if len(s["title"]) > 25 else ""), cls="text-xs"),
-                        Br(),
-                        Span(ts, style="font-size:0.6rem; color:#9ca3af;"),
-                    ),
-                    cls="gap-1",
+                DivFullySpaced(
+                    DivLAligned(UkIcon("message-circle", height=10), Span(title, cls="text-xs"), cls="gap-1"),
+                    Span(ts, style="font-size:0.55rem; color:#9ca3af;"),
                 ),
                 href=f"/session/{s['id']}",
-                cls="sidebar-topic no-underline" + (" active" if is_active else ""),
-                style="padding:5px 8px;",
+                cls="no-underline block py-1 px-2 rounded text-xs" + (" bg-primary/10" if is_active else " hover:bg-muted/50"),
             )
         )
     return items
