@@ -106,21 +106,25 @@ from utils.i18n import t, get_lang, detect_language, LANGUAGES
 def index(req, sess):
     """Default view: chat-first layout."""
     lang = get_lang(sess, req)
+    user = _get_session_user(sess)
     chat_sess = _get_or_create_session("general")
-    return _app_shell(chat_sess, lang=lang)
+    return _app_shell(chat_sess, lang=lang, user=user)
 
 
 @rt("/topic/{topic_slug}")
 def topic_view(topic_slug: str, sess):
     """Switch topic — returns the full app shell."""
     lang = get_lang(sess)
+    user = _get_session_user(sess)
     chat_sess = _get_or_create_session(topic_slug)
-    return _app_shell(chat_sess, active_topic=topic_slug, lang=lang)
+    return _app_shell(chat_sess, active_topic=topic_slug, lang=lang, user=user)
 
 
 @rt("/set-lang/{lang_code}")
 def set_language(lang_code: str, sess):
-    """Switch UI language."""
+    """Switch UI language — requires login."""
+    if not sess.get("user_id"):
+        return RedirectResponse("/login", status_code=303)
     if lang_code in LANGUAGES:
         sess["lang"] = lang_code
     return RedirectResponse("/", status_code=303)
@@ -325,30 +329,38 @@ def auth_logout(sess):
 
 # ===================== LAYOUT BUILDERS =====================
 
-def _nav_bar(lang: str = "en"):
-    # Language switcher flags
-    lang_flags = DivLAligned(
-        *[A(
-            Span(info["flag"], cls="text-base" + (" opacity-40" if code != lang else "")),
-            href=f"/set-lang/{code}",
-            cls="no-underline",
-            title=info["native"],
-        ) for code, info in LANGUAGES.items()],
-        cls="gap-1",
-    )
-    return Div(
-        A(DivLAligned(UkIcon("newspaper", height=22), Span("NewsGuru", cls="text-lg font-bold"), cls="gap-2"), href="/", cls="no-underline"),
-        DivLAligned(
+def _nav_bar(lang: str = "en", user: dict = None):
+    right_items = []
+    if user:
+        # Logged in: show language flags + user name + logout
+        lang_flags = DivLAligned(
+            *[A(
+                Span(info["flag"], cls="text-base" + (" opacity-40" if code != lang else "")),
+                href=f"/set-lang/{code}",
+                cls="no-underline",
+                title=info["native"],
+            ) for code, info in LANGUAGES.items()],
+            cls="gap-1",
+        )
+        right_items = [
             lang_flags,
+            Span(user.get("name", ""), cls="text-sm"),
+            A(t("logout", lang), href="/auth/logout", cls="uk-button uk-button-default uk-button-small"),
+        ]
+    else:
+        # Not logged in: just login/register, no language switcher
+        right_items = [
             A(t("login", lang), href="/login", cls="uk-button uk-button-default uk-button-small"),
             A(t("register", lang), href="/register", cls="uk-button uk-button-primary uk-button-small"),
-            cls="gap-3",
-        ),
+        ]
+    return Div(
+        A(DivLAligned(UkIcon("newspaper", height=22), Span("NewsGuru", cls="text-lg font-bold"), cls="gap-2"), href="/", cls="no-underline"),
+        DivLAligned(*right_items, cls="gap-3"),
         cls="app-nav",
     )
 
 
-def _app_shell(session: dict, active_topic: str = None, lang: str = "en"):
+def _app_shell(session: dict, active_topic: str = None, lang: str = "en", user: dict = None):
     """Main 3-pane app shell. Chat-first, no login required."""
     session_id = str(session["id"])
     topics = _get_topics_with_counts()
@@ -377,7 +389,7 @@ def _app_shell(session: dict, active_topic: str = None, lang: str = "en"):
 
     return (
         Title("NewsGuru"),
-        _nav_bar(lang),
+        _nav_bar(lang, user),
         Div(
             # ===== LEFT PANE =====
             Div(
@@ -401,7 +413,7 @@ def _app_shell(session: dict, active_topic: str = None, lang: str = "en"):
                     _journalist_widget(_get_top_journalists(), lang),
                     cls="sidebar-section",
                 ),
-                _config_panel(lang),
+                _config_panel(lang) if user else None,
                 cls="left-pane",
             ),
 
@@ -581,6 +593,14 @@ def _sources_list(sources: list[dict], lang: str = "en"):
 
 
 # ===================== HELPERS =====================
+
+def _get_session_user(sess) -> dict | None:
+    """Get logged-in user info from session, or None."""
+    uid = sess.get("user_id") if isinstance(sess, dict) else None
+    if not uid:
+        return None
+    return {"id": uid, "email": sess.get("user_email", ""), "name": sess.get("user_name", "")}
+
 
 def _get_active_sources() -> list[dict]:
     return fetch_all("""
