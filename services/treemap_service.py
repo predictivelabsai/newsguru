@@ -275,7 +275,37 @@ def build_journalist_chat_html() -> str:
             + '</div>'
         )
 
+    # Add topic cluster summary if available
+    cluster_html = ""
+    try:
+        from agents.topic_modeler import get_daily_clusters
+        clusters = get_daily_clusters(5)
+        if clusters:
+            c_items = []
+            for c in clusters:
+                sources = [a.get("source_name", "") for a in c.get("articles", [])]
+                unique_src = list(dict.fromkeys(s for s in sources if s))[:3]
+                sents = [a["sentiment_score"] for a in c.get("articles", []) if a.get("sentiment_score") is not None]
+                avg_sent = sum(sents) / len(sents) if sents else 0
+                sent_color = "#10b981" if avg_sent > 0.2 else "#ef4444" if avg_sent < -0.2 else "#6b7280"
+                c_items.append(
+                    f'<div style="margin-bottom:4px;">'
+                    f'<span style="font-size:0.8rem;font-weight:500;">{c["cluster_label"]}</span> '
+                    f'<span style="font-size:0.6rem;color:#9ca3af;">({c["article_count"]} sources)</span> '
+                    f'<span style="font-size:0.6rem;color:{sent_color};">{avg_sent:+.1f}</span><br>'
+                    f'<span style="font-size:0.6rem;color:#6b7280;">{", ".join(unique_src)}</span>'
+                    f'</div>'
+                )
+            cluster_html = (
+                '<div style="margin-top:10px;border-top:1px solid #e5e7eb;padding-top:8px;">'
+                '<p style="font-size:0.75rem;font-weight:600;color:#374151;margin-bottom:4px;">Top Stories (multi-source)</p>'
+                + "".join(c_items)
+                + '</div>'
+            )
+    except Exception:
+        pass
+
     return (
         f'<iframe src="/journalist-chart" style="width:100%;height:340px;border:none;border-radius:8px;" loading="lazy"></iframe>'
-        f'{j_html}'
+        f'{j_html}{cluster_html}'
     )

@@ -130,10 +130,10 @@ def index(req, sess):
 
 @rt("/topic/{topic_slug}")
 def topic_view(topic_slug: str, sess):
-    """Switch topic — returns the full app shell."""
+    """Switch topic — always starts a fresh chat session."""
     lang = get_lang(sess)
     user = _get_session_user(sess)
-    chat_sess = _get_or_create_session(topic_slug)
+    chat_sess = _create_new_session(topic_slug)
     return _app_shell(chat_sess, active_topic=topic_slug, lang=lang, user=user)
 
 
