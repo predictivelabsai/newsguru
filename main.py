@@ -33,9 +33,7 @@ app, rt = fast_app(
             .app-layout { display: flex; gap: 0; height: calc(100vh - 60px); overflow: hidden; }
             .left-pane { width: 240px; min-width: 240px; overflow-y: auto; padding: 12px; border-right: 1px solid #e5e7eb; }
             .center-pane { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
-            .right-pane { width: 380px; min-width: 380px; overflow-y: auto; padding: 12px; border-left: 1px solid #e5e7eb;
-                          transition: width 0.3s ease, min-width 0.3s ease, opacity 0.3s ease, padding 0.3s ease; }
-            .right-pane.hidden { width: 0; min-width: 0; padding: 0; opacity: 0; overflow: hidden; }
+            .right-pane { width: 380px; min-width: 380px; overflow-y: auto; padding: 12px; border-left: 1px solid #e5e7eb; }
 
             /* Feed area in center */
             .feed-area { flex: 1; overflow-y: auto; padding: 16px; }
@@ -145,17 +143,7 @@ async def chat_send(session_id: str, msg: str):
         sse_swap="token",
         hx_swap="beforeend",
     )
-    # OOB: show chat messages, open the right pane with feed
-    show_right = Script("""
-        var rp = document.getElementById('right-pane');
-        if (rp) rp.classList.remove('hidden');
-        var fa = document.getElementById('feed-in-center');
-        if (fa) fa.style.display = 'none';
-    """)
-    return Div(
-        show_right,
-        Div(user_bubble, thinking, response_area, hx_swap_oob="beforeend:#chat-messages"),
-    )
+    return Div(user_bubble, thinking, response_area, hx_swap_oob="beforeend:#chat-messages")
 
 
 # ===================== SSE ENDPOINTS =====================
@@ -343,17 +331,26 @@ def _app_shell(session: dict, active_topic: str = None):
     topics = _get_topics_with_counts()
     grouped = _group_topics(topics)
 
-    # Check if session has existing messages
-    msg_count = fetch_one("SELECT COUNT(*) as cnt FROM chat_messages WHERE session_id = :sid", {"sid": session_id})
-    has_messages = msg_count and msg_count["cnt"] > 0
-
     # Load existing messages
-    messages = []
-    if has_messages:
-        messages = fetch_all("SELECT role, content FROM chat_messages WHERE session_id = :sid ORDER BY created_at ASC", {"sid": session_id})
+    messages = fetch_all("SELECT role, content FROM chat_messages WHERE session_id = :sid ORDER BY created_at ASC", {"sid": session_id})
 
-    # Recent articles for center feed
+    # Recent articles for right pane feed
     recent_articles = _get_recent_articles(20)
+
+    # Build chat bubbles — always show welcome if no messages
+    msg_bubbles = [ChatMessageBubble(m["role"], m["content"]) for m in messages]
+    if not messages:
+        msg_bubbles.append(
+            Div(
+                Div(
+                    P("Welcome to NewsGuru!", cls="font-semibold text-sm"),
+                    P("I'm your AI news assistant. Ask me about the latest headlines, search for specific topics, or get analysis on trending stories. I can search the web using Tavily and Exa, and pull from our article database.", cls="text-sm text-muted mt-1"),
+                    P("Try: \"What's happening in Ukraine?\", \"Latest tech news\", or \"Summarize today's business headlines\"", cls="text-xs text-muted mt-2 italic"),
+                    cls="p-3",
+                ),
+                cls="chat-assistant",
+            )
+        )
 
     return (
         Title("NewsGuru"),
@@ -373,7 +370,13 @@ def _app_shell(session: dict, active_topic: str = None):
                     _trending_widget(_get_trending()),
                     cls="sidebar-section",
                 ),
-                # Top journalists
+                # Sources (news outlets)
+                Div(
+                    Div("Sources", cls="sidebar-section-title"),
+                    _sources_widget(_get_active_sources()),
+                    cls="sidebar-section",
+                ),
+                # Journalists
                 Div(
                     Div("Journalists", cls="sidebar-section-title"),
                     _journalist_widget(_get_top_journalists()),
@@ -384,30 +387,9 @@ def _app_shell(session: dict, active_topic: str = None):
                 cls="left-pane",
             ),
 
-            # ===== CENTER PANE =====
+            # ===== CENTER PANE (always chat) =====
             Div(
-                # Live feed shown in center when no chat active
-                Div(
-                    *[ArticleCard(a) for a in recent_articles],
-                    Div(
-                        id="live-feed-items",
-                        hx_ext="sse",
-                        sse_connect="/sse/feed",
-                        sse_swap="new-article",
-                        hx_swap="afterbegin",
-                    ),
-                    id="feed-in-center",
-                    cls="feed-area",
-                    style="" if not has_messages else "display:none;",
-                ),
-                # Chat messages (empty initially, fills when user chats)
-                Div(
-                    *[ChatMessageBubble(m["role"], m["content"]) for m in messages],
-                    id="chat-messages",
-                    cls="feed-area",
-                    style="display:none;" if not has_messages else "",
-                ),
-                # Chat input — always at bottom
+                Div(*msg_bubbles, id="chat-messages", cls="feed-area"),
                 Div(
                     Form(
                         DivFullySpaced(
@@ -418,7 +400,7 @@ def _app_shell(session: dict, active_topic: str = None):
                         hx_post=f"/chat/{session_id}/send",
                         hx_target="#chat-messages",
                         hx_swap="beforeend",
-                        hx_on__before_request="document.getElementById('chat-input').disabled=true; document.getElementById('chat-messages').style.display='';",
+                        hx_on__before_request="document.getElementById('chat-input').disabled=true;",
                         hx_on__after_request="this.reset();",
                     ),
                     cls="chat-input-area",
@@ -426,21 +408,23 @@ def _app_shell(session: dict, active_topic: str = None):
                 cls="center-pane",
             ),
 
-            # ===== RIGHT PANE (hidden until chat starts) =====
+            # ===== RIGHT PANE (always visible — live feed) =====
             Div(
-                H4(DivLAligned(UkIcon("rss", height=16), Span("Live Feed", cls="text-sm font-semibold"), cls="gap-2")),
+                H4(DivLAligned(UkIcon("rss", height=16), Span("Live Feed", cls="text-sm font-semibold"), cls="gap-2"), cls="mb-2"),
                 Div(
-                    *[ArticleCard(a) for a in recent_articles[:10]],
                     Div(
-                        id="right-feed-items",
+                        id="live-feed-items",
                         hx_ext="sse",
                         sse_connect="/sse/feed",
                         sse_swap="new-article",
                         hx_swap="afterbegin",
                     ),
+                    *[ArticleCard(a) for a in recent_articles],
+                    id="feed-scroll",
+                    style="overflow-y: auto; max-height: calc(100vh - 120px);",
                 ),
                 id="right-pane",
-                cls="right-pane" + ("" if has_messages else " hidden"),
+                cls="right-pane",
             ),
 
             cls="app-layout",
@@ -484,14 +468,35 @@ def _trending_widget(topics: list[dict]):
     return Div(*items, hx_get="/api/trending", hx_trigger="every 60s", hx_swap="outerHTML")
 
 
+def _sources_widget(sources: list[dict]):
+    """Show active news sources in left pane."""
+    if not sources:
+        return P("No sources yet.", cls="text-xs text-muted px-2")
+    items = []
+    for s in sources:
+        items.append(
+            DivFullySpaced(
+                DivLAligned(
+                    Span("", style=f"width:6px;height:6px;border-radius:50%;background:#10b981;display:inline-block;"),
+                    Span(s["name"], cls="text-xs"),
+                    cls="gap-1",
+                ),
+                Span(str(s.get("article_count", 0)), cls="text-xs text-muted"),
+                cls="px-2 py-0.5",
+            )
+        )
+    return Div(*items)
+
+
 def _journalist_widget(journalists: list[dict]):
     if not journalists:
         return P("No journalists tracked yet.", cls="text-xs text-muted px-2")
     items = []
     for j in journalists[:7]:
+        pub = f" ({j['source_name']})" if j.get("source_name") else ""
         items.append(
             DivFullySpaced(
-                Span(j["name"], cls="text-xs"),
+                Span(f"{j['name']}{pub}", cls="text-xs"),
                 Span(str(j["article_count"]), cls="text-xs text-muted"),
                 cls="px-2 py-0.5",
             )
@@ -540,6 +545,16 @@ def _sources_list(sources: list[dict]):
 
 
 # ===================== HELPERS =====================
+
+def _get_active_sources() -> list[dict]:
+    return fetch_all("""
+        SELECT s.name, s.domain, COUNT(a.id) AS article_count
+        FROM sources s
+        LEFT JOIN articles a ON a.source_id = s.id AND a.created_at > NOW() - INTERVAL '24 hours'
+        WHERE s.is_active = true
+        GROUP BY s.id, s.name, s.domain
+        ORDER BY article_count DESC
+    """)
 
 def _get_recent_articles(limit: int = 20) -> list[dict]:
     return fetch_all("""
