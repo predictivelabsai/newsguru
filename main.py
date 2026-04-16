@@ -10,6 +10,8 @@ logger = logging.getLogger(__name__)
 
 load_dotenv()
 
+APP_VERSION = "0.9.0 (2026-04-17)"
+
 from utils.config import load_config, get_topics, get_topic_by_slug
 from db.pool import get_db, fetch_all, fetch_one, execute_sql
 
@@ -682,6 +684,11 @@ def _app_shell(session: dict, active_topic: str = None, lang: str = "en", user: 
                     cls="sidebar-section",
                 ),
                 _config_panel(lang) if user else None,
+                # Version
+                Div(
+                    Span(f"v{APP_VERSION}", style="font-size:0.55rem; color:#c0c0c0;"),
+                    style="padding:8px 10px; margin-top:auto;",
+                ),
                 id="left-pane",
                 cls="left-pane",
             ),
