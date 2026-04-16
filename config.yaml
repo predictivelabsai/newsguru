@@ -1,0 +1,95 @@
+app:
+  name: "NewsGuru"
+  port: 5001
+  theme: "blue"
+  sse_interval_seconds: 20
+  fetch_interval_seconds: 300
+
+topics:
+  - name: Technology
+    slug: technology
+    icon: cpu
+    color: "#3b82f6"
+    display_order: 1
+    keywords: ["tech", "software", "AI", "startup", "gadget", "cyber", "digital", "app", "robot", "quantum"]
+  - name: Politics
+    slug: politics
+    icon: landmark
+    color: "#ef4444"
+    display_order: 2
+    keywords: ["politics", "government", "election", "parliament", "policy", "president", "minister", "vote", "law", "reform"]
+  - name: Business
+    slug: business
+    icon: briefcase
+    color: "#f59e0b"
+    display_order: 3
+    keywords: ["business", "economy", "market", "stock", "finance", "trade", "bank", "investment", "revenue", "profit"]
+  - name: Sports
+    slug: sports
+    icon: trophy
+    color: "#10b981"
+    display_order: 4
+    keywords: ["sport", "football", "basketball", "tennis", "olympic", "game", "match", "league", "championship", "athlete"]
+  - name: Science
+    slug: science
+    icon: flask-conical
+    color: "#8b5cf6"
+    display_order: 5
+    keywords: ["science", "research", "study", "discovery", "space", "climate", "biology", "physics", "medicine", "health"]
+  - name: Culture
+    slug: culture
+    icon: palette
+    color: "#ec4899"
+    display_order: 6
+    keywords: ["culture", "art", "music", "film", "book", "entertainment", "theater", "festival", "museum", "exhibition"]
+
+sources:
+  estonian:
+    - name: Postimees
+      domain: postimees.ee
+      rss_url: https://www.postimees.ee/rss
+      language: et
+    - name: Eesti Päevaleht
+      domain: epl.delfi.ee
+      rss_url: https://epl.delfi.ee/rss
+      language: et
+    - name: ERR
+      domain: err.ee
+      rss_url: https://www.err.ee/rss
+      language: et
+
+  english:
+    - name: Wall Street Journal
+      domain: wsj.com
+      rss_url: https://feeds.a.dj.com/rss/RSSWorldNews.xml
+      language: en
+    - name: Financial Times
+      domain: ft.com
+      rss_url: https://www.ft.com/rss/home
+      language: en
+    - name: Bloomberg
+      domain: bloomberg.com
+      rss_url: https://feeds.bloomberg.com/markets/news.rss
+      language: en
+    - name: BBC News
+      domain: bbc.com
+      rss_url: http://feeds.bbci.co.uk/news/rss.xml
+      language: en
+
+scraping:
+  default_engine: newspaper4k
+  request_timeout_seconds: 15
+  max_concurrent_scrapes: 5
+
+search:
+  tavily:
+    max_results: 10
+    search_depth: advanced
+    topic: news
+
+llm:
+  model: grok-4-fast-reasoning
+  temperature: 0.4
+  max_tokens: 2000
+  sentiment_model: grok-4-fast-reasoning
+  sentiment_temperature: 0.1
