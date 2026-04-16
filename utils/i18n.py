@@ -100,6 +100,12 @@ TRANSLATIONS = {
     "no_journalists": {"en": "No journalists tracked yet.", "et": "Ajakirjanikke pole veel jälgitud."},
     "no_trending": {"en": "No trending topics yet.", "et": "Populaarseid teemasid pole veel."},
 
+    # Heatmap / Treemap
+    "heatmap": {"en": "Significance Map", "et": "Olulisuse kaart"},
+    "heatmap_prompt": {"en": "Show me the significance heatmap", "et": "Näita mulle olulisuse kaarti"},
+    "generating_treemap": {"en": "Generating treemap...", "et": "Genereerin kaarti..."},
+    "analyzing_data": {"en": "Analyzing article data...", "et": "Analüüsin artiklite andmeid..."},
+
     # Starter question cards
     "starter_1": {"en": "What are the main news today?", "et": "Millised on tänased peamised uudised?"},
     "starter_2": {"en": "Latest developments in AI and technology", "et": "Viimased arengud tehisintellektis ja tehnoloogias"},

@@ -16,6 +16,23 @@ from db.pool import get_db, fetch_all, fetch_one, execute_sql
 config = load_config()
 
 sse_script = Script(src="https://unpkg.com/htmx-ext-sse@2.2.3/sse.js")
+plotly_script = Script(src="https://cdn.plot.ly/plotly-2.35.0.min.js")
+plotly_renderer = Script("""
+    // Auto-render any Plotly charts injected via HTMX/SSE
+    function renderPendingPlotly() {
+        document.querySelectorAll('.plotly-pending').forEach(function(el) {
+            el.classList.remove('plotly-pending');
+            try {
+                var d = JSON.parse(el.getAttribute('data-plotly'));
+                Plotly.newPlot(el.id, d.data, d.layout, {responsive: true, displayModeBar: false});
+            } catch(e) { console.error('Plotly render error:', e); }
+        });
+    }
+    // Run on HTMX settle (covers SSE swaps)
+    document.addEventListener('htmx:afterSettle', renderPendingPlotly);
+    // Also run on DOM mutation as fallback for SSE innerHTML
+    new MutationObserver(renderPendingPlotly).observe(document.body, {childList: true, subtree: true});
+""")
 pwa_headers = (
     Meta(name="apple-mobile-web-app-capable", content="yes"),
     Meta(name="apple-mobile-web-app-status-bar-style", content="black-translucent"),
@@ -27,6 +44,8 @@ app, rt = fast_app(
     hdrs=(
         Theme.blue.headers(highlightjs=True),
         sse_script,
+        plotly_script,
+        plotly_renderer,
         *pwa_headers,
         Style("""
             /* Layout */
@@ -210,7 +229,25 @@ async def _feed_generator(topic_slug: str = None, lang: str = "en"):
             yield ": keepalive\n\n"
 
 
+_TREEMAP_TRIGGERS = {"show me the significance heatmap", "näita mulle olulisuse kaarti",
+                      "significance heatmap", "significance map", "treemap", "heatmap",
+                      "olulisuse kaart", "olulisuse kaardi"}
+
+
+def _is_treemap_request(messages: list[dict]) -> bool:
+    if not messages:
+        return False
+    last = messages[-1]
+    return last.get("role") == "user" and last.get("content", "").strip().lower() in _TREEMAP_TRIGGERS
+
+
 async def _chat_stream(session_id: str, messages: list[dict], topic_slug: str = None):
+    # Check if this is a treemap request
+    if _is_treemap_request(messages):
+        async for msg in _treemap_stream(session_id):
+            yield msg
+        return
+
     from services.chat_service import get_chat_response_stream
     full_response = ""
     try:
@@ -243,6 +280,88 @@ async def _chat_stream(session_id: str, messages: list[dict], topic_slug: str = 
             INSERT INTO chat_messages (session_id, role, content)
             VALUES (:sid, 'assistant', :content)
         """, {"sid": session_id, "content": full_response})
+    yield sse_message(
+        Script("document.getElementById('chat-input').disabled=false; document.getElementById('chat-input').focus();"),
+        event="token",
+    )
+
+
+async def _treemap_stream(session_id: str):
+    """Agentic treemap generation — streams status updates then the chart + analysis."""
+    from services.treemap_service import build_significance_treemap, build_treemap_summary
+
+    # Step 1: Analyzing
+    yield sse_message(
+        Script("document.getElementById('thinking-text').textContent='Analyzing article data...';"),
+        event="token",
+    )
+    await asyncio.sleep(0.5)
+
+    # Step 2: Build summary for LLM
+    yield sse_message(
+        Script("document.getElementById('thinking-text').textContent='Scoring significance across topics...';"),
+        event="token",
+    )
+    summary = await asyncio.to_thread(build_treemap_summary)
+    await asyncio.sleep(0.3)
+
+    # Step 3: Generate treemap
+    yield sse_message(
+        Script("document.getElementById('thinking-text').textContent='Generating treemap visualization...';"),
+        event="token",
+    )
+    treemap_html = await asyncio.to_thread(build_significance_treemap)
+    await asyncio.sleep(0.3)
+
+    # Step 4: Get LLM analysis of the data
+    yield sse_message(
+        Script("document.getElementById('thinking-text').textContent='Composing analysis...';"),
+        event="token",
+    )
+    from services.chat_service import md_to_html
+    analysis_md = ""
+    try:
+        from langchain_openai import ChatOpenAI
+        import os
+        llm = ChatOpenAI(
+            api_key=os.environ["XAI_API_KEY"],
+            base_url="https://api.x.ai/v1",
+            model=load_config()["llm"]["model"],
+            temperature=0.3, max_tokens=800,
+        )
+        prompt = f"""You are NewsGuru. Analyze this news significance data and provide a brief insight (3-4 sentences).
+Focus on: which topics dominate, what the highest-scoring stories are about, and any patterns.
+
+{summary}
+
+Write in markdown with **bold** for emphasis."""
+        resp = await llm.ainvoke(prompt)
+        analysis_md = resp.content
+    except Exception as e:
+        analysis_md = f"*Could not generate analysis: {e}*"
+
+    analysis_html = md_to_html(analysis_md)
+
+    # Step 5: Stream the complete response
+    full_html = f"""
+    <div style="margin-bottom:12px;">{treemap_html}</div>
+    <div>{analysis_html}</div>
+    """
+    yield sse_message(
+        Div(
+            Script("var el=document.getElementById('thinking-indicator'); if(el) el.remove();"),
+            Div(NotStr(full_html), cls="chat-assistant text-sm"),
+        ),
+        event="token",
+    )
+
+    # Save to DB
+    execute_sql("""
+        INSERT INTO chat_messages (session_id, role, content)
+        VALUES (:sid, 'assistant', :content)
+    """, {"sid": session_id, "content": full_html})
+
+    # Re-enable input
     yield sse_message(
         Script("document.getElementById('chat-input').disabled=false; document.getElementById('chat-input').focus();"),
         event="token",
@@ -440,6 +559,13 @@ def _app_shell(session: dict, active_topic: str = None, lang: str = "en", user: 
                 Div(
                     Div(t("topics", lang), cls="sidebar-section-title"),
                     *[_sidebar_topic(tpc, active=(tpc["slug"] == active_topic), lang=lang) for tpc in grouped],
+                    # Treemap link
+                    A(
+                        DivLAligned(UkIcon("grid", height=18), Span(t("heatmap", lang), cls="text-sm font-medium"), cls="gap-2"),
+                        href="#",
+                        cls="sidebar-topic no-underline",
+                        onclick=f"document.getElementById('chat-input').value={repr(t('heatmap_prompt', lang))}; document.getElementById('chat-input').form.requestSubmit(); return false;",
+                    ),
                     cls="sidebar-section",
                 ),
                 Div(

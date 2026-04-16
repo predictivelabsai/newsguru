@@ -29,6 +29,8 @@ dependencies = [
     "exa_py>=2.0",
     # Markdown to HTML
     "markdown>=3.0",
+    # Charts
+    "plotly>=5.0",
     # Config
     "pyyaml>=6.0",
     "python-dotenv>=1.0",
