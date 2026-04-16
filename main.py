@@ -15,9 +15,7 @@ from db.pool import get_db, fetch_all, fetch_one, execute_sql
 
 config = load_config()
 
-# SSE extension
 sse_script = Script(src="https://unpkg.com/htmx-ext-sse@2.2.3/sse.js")
-
 pwa_headers = (
     Meta(name="apple-mobile-web-app-capable", content="yes"),
     Meta(name="apple-mobile-web-app-status-bar-style", content="black-translucent"),
@@ -31,8 +29,29 @@ app, rt = fast_app(
         sse_script,
         *pwa_headers,
         Style("""
-            .topic-card { cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; }
-            .topic-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+            /* Layout */
+            .app-layout { display: flex; gap: 0; height: calc(100vh - 60px); overflow: hidden; }
+            .left-pane { width: 240px; min-width: 240px; overflow-y: auto; padding: 12px; border-right: 1px solid #e5e7eb; }
+            .center-pane { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+            .right-pane { width: 380px; min-width: 380px; overflow-y: auto; padding: 12px; border-left: 1px solid #e5e7eb;
+                          transition: width 0.3s ease, min-width 0.3s ease, opacity 0.3s ease, padding 0.3s ease; }
+            .right-pane.hidden { width: 0; min-width: 0; padding: 0; opacity: 0; overflow: hidden; }
+
+            /* Feed area in center */
+            .feed-area { flex: 1; overflow-y: auto; padding: 16px; }
+            .chat-input-area { padding: 12px 16px; border-top: 1px solid #e5e7eb; }
+
+            /* Chat messages overlay feed when active */
+            #chat-messages { overflow-y: auto; padding: 0 16px; }
+            #chat-messages:empty { display: none; }
+
+            /* Topic cards in sidebar */
+            .sidebar-topic { cursor: pointer; padding: 8px 10px; border-radius: 8px; border-left: 3px solid transparent;
+                             transition: background 0.15s, border-color 0.15s; margin-bottom: 4px; }
+            .sidebar-topic:hover { background: #f3f4f6; }
+            .sidebar-topic.active { background: #eff6ff; border-left-color: #3b82f6; }
+
+            /* Chat bubbles */
             .chat-user { background: #eff6ff; border-radius: 12px; padding: 10px 16px; margin: 6px 0; max-width: 80%; margin-left: auto; }
             .chat-assistant { background: #f8f9fa; border-radius: 12px; padding: 12px 16px; margin: 6px 0; max-width: 90%; }
             .chat-assistant h1, .chat-assistant h2, .chat-assistant h3 { margin-top: 0.75rem; margin-bottom: 0.25rem; font-size: 1rem; font-weight: 600; }
@@ -41,28 +60,33 @@ app, rt = fast_app(
             .chat-assistant p { margin: 0.25rem 0; }
             .chat-assistant a { color: #2563eb; text-decoration: underline; }
             .chat-assistant strong { font-weight: 600; }
+
+            /* Sentiment */
             .sentiment-positive { color: #10b981; font-weight: 600; }
             .sentiment-negative { color: #ef4444; font-weight: 600; }
             .sentiment-neutral { color: #6b7280; font-weight: 600; }
             .feed-item { border-left: 3px solid #3b82f6; padding-left: 10px; margin-bottom: 10px; }
             .feed-meta { color: #4b5563 !important; font-weight: 500; }
-            #chat-messages { max-height: 60vh; overflow-y: auto; }
-            .thinking-indicator { display: flex; align-items: center; gap: 8px; color: #6b7280; font-size: 0.85rem; padding: 8px 0; }
+
+            /* Thinking indicator */
+            .thinking-indicator { display: flex; align-items: center; gap: 8px; color: #6b7280; font-size: 0.85rem; padding: 8px 16px; }
             .thinking-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #3b82f6; animation: pulse 1.4s ease-in-out infinite; }
             .thinking-dot:nth-child(2) { animation-delay: 0.2s; }
             .thinking-dot:nth-child(3) { animation-delay: 0.4s; }
-            @keyframes pulse { 0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); } 40% { opacity: 1; transform: scale(1.2); } }
-            .config-panel { transition: max-height 0.3s ease; overflow: hidden; }
-            .left-pane { min-width: 200px; max-width: 200px; }
-            /* Mobile responsive */
+            @keyframes pulse { 0%,80%,100% { opacity:0.3; transform:scale(0.8); } 40% { opacity:1; transform:scale(1.2); } }
+
+            /* Navbar */
+            .app-nav { display: flex; align-items: center; justify-content: space-between; padding: 10px 20px; border-bottom: 1px solid #e5e7eb; height: 56px; }
+
+            /* Sidebar sections */
+            .sidebar-section { margin-bottom: 16px; }
+            .sidebar-section-title { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #9ca3af; margin-bottom: 6px; padding-left: 10px; }
+
+            /* Mobile */
             @media (max-width: 768px) {
                 .left-pane { display: none; }
-                .uk-width-1-4\\@m { display: none; }
-                .chat-user, .chat-assistant { max-width: 95%; }
-                #chat-messages { max-height: 50vh; }
-            }
-            @media (max-width: 640px) {
-                .uk-width-2-3\\@m, .uk-width-1-3\\@m { width: 100% !important; }
+                .right-pane { display: none; }
+                .app-layout { height: calc(100vh - 56px); }
             }
         """),
     ),
@@ -71,71 +95,26 @@ app, rt = fast_app(
 
 shutdown_event = signal_shutdown()
 
-# -- Global SSE queues --
 article_queue: asyncio.Queue = asyncio.Queue()
 topic_queues: dict[str, asyncio.Queue] = {}
 
-from components.layout import page_shell, NavBar_
-from components.topic_cards import TopicCard, TopicGrid
 from components.article_card import ArticleCard
-from components.feed_panel import FeedPanel
-from components.trending import TrendingWidget
-from components.journalist_panel import JournalistPanel
-from components.chat_ui import ChatInterface, ChatSessionList, ChatMessageBubble
+from components.chat_ui import ChatMessageBubble
 
 # ===================== ROUTES =====================
 
 @rt
 def index():
-    topics = _get_topics_with_counts()
-    # Merge into 3 groups: News & Politics, Business & Tech, Sports & Culture
-    grouped = _group_topics(topics)
-    return page_shell(
-        Grid(
-            Div(
-                H2("What's happening in the world?", cls="text-2xl font-bold mb-4"),
-                P("Choose a topic to start chatting about the latest news.", cls=TextPresets.muted_sm),
-                TopicGrid(grouped),
-                Div(id="config-section", cls="mt-6"),
-                _config_panel(),
-                cls="uk-width-2-3@m",
-            ),
-            Div(
-                FeedPanel(),
-                TrendingWidget(_get_trending()),
-                JournalistPanel(_get_top_journalists()),
-                cls="uk-width-1-3@m space-y-4",
-            ),
-        ),
-        title="NewsGuru",
-    )
+    """Default view: chat-first layout."""
+    sess = _get_or_create_session("general")
+    return _app_shell(sess)
 
 
-@rt("/chat/{topic_slug}")
-def chat_page(topic_slug: str, session: str = None):
-    topic = get_topic_by_slug(topic_slug)
-    if not topic:
-        return RedirectResponse("/", status_code=303)
+@rt("/topic/{topic_slug}")
+def topic_view(topic_slug: str):
+    """Switch topic — returns the full app shell."""
     sess = _get_or_create_session(topic_slug)
-    sessions = _get_recent_sessions(topic_slug)
-    return page_shell(
-        Div(
-            Div(
-                ChatSessionList(sessions, topic_slug, sess["id"]),
-                cls="left-pane",
-            ),
-            Div(
-                ChatInterface(sess, topic),
-                cls="flex-1",
-            ),
-            Div(
-                FeedPanel(topic_slug),
-                cls="uk-width-1-4@m",
-            ),
-            cls="flex gap-4",
-        ),
-        title=f"NewsGuru - {topic['name']}",
-    )
+    return _app_shell(sess, active_topic=topic_slug)
 
 
 @rt("/chat/{session_id}/send", methods=["POST"])
@@ -145,14 +124,12 @@ async def chat_send(session_id: str, msg: str):
         INSERT INTO chat_messages (session_id, role, content)
         VALUES (:sid, 'user', :content)
     """, {"sid": session_id, "content": msg})
-    # Update session title if first message
     execute_sql("""
         UPDATE chat_sessions SET title = :title, updated_at = NOW()
         WHERE id = :sid AND title = 'New chat'
     """, {"sid": session_id, "title": msg[:60]})
 
     user_bubble = ChatMessageBubble("user", msg)
-    # Thinking indicator + SSE response area
     thinking = Div(
         Div(
             Span("", cls="thinking-dot"), Span("", cls="thinking-dot"), Span("", cls="thinking-dot"),
@@ -168,7 +145,17 @@ async def chat_send(session_id: str, msg: str):
         sse_swap="token",
         hx_swap="beforeend",
     )
-    return Div(user_bubble, thinking, response_area, hx_swap_oob="beforeend:#chat-messages")
+    # OOB: show chat messages, open the right pane with feed
+    show_right = Script("""
+        var rp = document.getElementById('right-pane');
+        if (rp) rp.classList.remove('hidden');
+        var fa = document.getElementById('feed-in-center');
+        if (fa) fa.style.display = 'none';
+    """)
+    return Div(
+        show_right,
+        Div(user_bubble, thinking, response_area, hx_swap_oob="beforeend:#chat-messages"),
+    )
 
 
 # ===================== SSE ENDPOINTS =====================
@@ -187,7 +174,6 @@ async def sse_chat(session_id: str):
         SELECT role, content FROM chat_messages
         WHERE session_id = :sid ORDER BY created_at ASC
     """, {"sid": session_id})
-    # Get topic slug from session
     sess = fetch_one("SELECT topic_slug FROM chat_sessions WHERE id = :sid", {"sid": session_id})
     topic_slug = sess["topic_slug"] if sess else None
     return EventStream(_chat_stream(session_id, messages, topic_slug))
@@ -212,15 +198,13 @@ async def _chat_stream(session_id: str, messages: list[dict], topic_slug: str = 
     try:
         async for event in get_chat_response_stream(messages, topic_slug):
             if event["type"] == "status":
-                # Update the thinking indicator text
                 yield sse_message(
                     Script(f"document.getElementById('thinking-text').textContent='{event['text']}';"),
                     event="token",
                 )
             elif event["type"] == "token":
                 html = event["html"]
-                full_response = html  # Already full HTML
-                # Remove thinking indicator and show response
+                full_response = html
                 yield sse_message(
                     Div(
                         Script("var el=document.getElementById('thinking-indicator'); if(el) el.remove();"),
@@ -236,13 +220,11 @@ async def _chat_stream(session_id: str, messages: list[dict], topic_slug: str = 
             ),
             event="token",
         )
-    # Save assistant response (store as HTML)
     if full_response:
         execute_sql("""
             INSERT INTO chat_messages (session_id, role, content)
             VALUES (:sid, 'assistant', :content)
         """, {"sid": session_id, "content": full_response})
-    # Re-enable input
     yield sse_message(
         Script("document.getElementById('chat-input').disabled=false; document.getElementById('chat-input').focus();"),
         event="token",
@@ -253,21 +235,19 @@ async def _chat_stream(session_id: str, messages: list[dict], topic_slug: str = 
 
 @rt("/api/trending")
 def api_trending():
-    return TrendingWidget(_get_trending())
+    return _trending_widget(_get_trending())
 
 @rt("/api/journalists")
 def api_journalists():
-    return JournalistPanel(_get_top_journalists())
+    return _journalist_widget(_get_top_journalists())
 
 @rt("/api/sources")
 def api_sources():
-    """Get all sources for config panel."""
     sources = fetch_all("SELECT id, name, domain, rss_url, language, is_active FROM sources ORDER BY name")
     return _sources_list(sources)
 
 @rt("/api/sources/add", methods=["POST"])
 def api_add_source(name: str, domain: str, rss_url: str, language: str = "en"):
-    """Add a new source."""
     execute_sql("""
         INSERT INTO sources (name, domain, rss_url, language)
         VALUES (:name, :domain, :rss_url, :language)
@@ -278,7 +258,6 @@ def api_add_source(name: str, domain: str, rss_url: str, language: str = "en"):
 
 @rt("/api/sources/{source_id}/toggle", methods=["POST"])
 def api_toggle_source(source_id: str):
-    """Toggle source active/inactive."""
     execute_sql("UPDATE sources SET is_active = NOT is_active WHERE id = :id", {"id": source_id})
     sources = fetch_all("SELECT id, name, domain, rss_url, language, is_active FROM sources ORDER BY name")
     return _sources_list(sources)
@@ -288,107 +267,53 @@ def api_toggle_source(source_id: str):
 
 @rt("/login")
 def login_page():
-    return page_shell(
-        Div(
-            Card(
-                DivCentered(
-                    UkIcon("newspaper", height=32),
-                    H2("NewsGuru", cls="text-2xl font-bold"),
-                    P("Sign in to your account", cls=TextPresets.muted_sm),
-                    cls="mb-4",
-                ),
-                Form(
-                    Div(
-                        Label("Email", fr="email"),
-                        Input(name="email", type="email", id="email", placeholder="you@example.com", cls="uk-input"),
-                        cls="space-y-1",
-                    ),
-                    Div(
-                        Label("Password", fr="password"),
-                        Input(name="password", type="password", id="password", placeholder="Password", cls="uk-input"),
-                        cls="space-y-1 mt-3",
-                    ),
-                    Button("Sign In", type="submit", cls=ButtonT.primary + " uk-width-1-1 mt-4"),
-                    hx_post="/auth/login",
-                    hx_target="body",
-                ),
-                Div(
-                    P("Don't have an account?", cls="text-sm text-center mt-3"),
-                    A("Register", href="/register", cls="uk-button uk-button-text"),
-                    cls="text-center",
-                ),
-                cls="max-w-sm mx-auto mt-12",
+    return Title("NewsGuru - Login"), _nav_bar(), Div(
+        Card(
+            DivCentered(UkIcon("newspaper", height=32), H2("NewsGuru", cls="text-2xl font-bold"),
+                        P("Sign in to your account", cls=TextPresets.muted_sm), cls="mb-4"),
+            Form(
+                Div(Label("Email", fr="email"), Input(name="email", type="email", id="email", placeholder="you@example.com", cls="uk-input"), cls="space-y-1"),
+                Div(Label("Password", fr="password"), Input(name="password", type="password", id="password", placeholder="Password", cls="uk-input"), cls="space-y-1 mt-3"),
+                Button("Sign In", type="submit", cls=ButtonT.primary + " uk-width-1-1 mt-4"),
+                hx_post="/auth/login", hx_target="body",
             ),
-            cls="flex justify-center",
-        ),
-        title="NewsGuru - Login",
+            Div(P("Don't have an account?", cls="text-sm text-center mt-3"), A("Register", href="/register", cls="uk-button uk-button-text"), cls="text-center"),
+            cls="max-w-sm mx-auto mt-12",
+        ), cls="flex justify-center p-8",
     )
 
 @rt("/register")
 def register_page():
-    return page_shell(
-        Div(
-            Card(
-                DivCentered(
-                    UkIcon("newspaper", height=32),
-                    H2("NewsGuru", cls="text-2xl font-bold"),
-                    P("Create a new account", cls=TextPresets.muted_sm),
-                    cls="mb-4",
-                ),
-                Form(
-                    Div(
-                        Label("Display Name", fr="display_name"),
-                        Input(name="display_name", id="display_name", placeholder="Your name", cls="uk-input"),
-                        cls="space-y-1",
-                    ),
-                    Div(
-                        Label("Email", fr="email"),
-                        Input(name="email", type="email", id="email", placeholder="you@example.com", cls="uk-input"),
-                        cls="space-y-1 mt-3",
-                    ),
-                    Div(
-                        Label("Password", fr="password"),
-                        Input(name="password", type="password", id="password", placeholder="Password", cls="uk-input"),
-                        cls="space-y-1 mt-3",
-                    ),
-                    Button("Create Account", type="submit", cls=ButtonT.primary + " uk-width-1-1 mt-4"),
-                    hx_post="/auth/register",
-                    hx_target="body",
-                ),
-                Div(
-                    P("Already have an account?", cls="text-sm text-center mt-3"),
-                    A("Sign In", href="/login", cls="uk-button uk-button-text"),
-                    cls="text-center",
-                ),
-                cls="max-w-sm mx-auto mt-12",
+    return Title("NewsGuru - Register"), _nav_bar(), Div(
+        Card(
+            DivCentered(UkIcon("newspaper", height=32), H2("NewsGuru", cls="text-2xl font-bold"),
+                        P("Create a new account", cls=TextPresets.muted_sm), cls="mb-4"),
+            Form(
+                Div(Label("Display Name", fr="dn"), Input(name="display_name", id="dn", placeholder="Your name", cls="uk-input"), cls="space-y-1"),
+                Div(Label("Email", fr="email"), Input(name="email", type="email", id="email", placeholder="you@example.com", cls="uk-input"), cls="space-y-1 mt-3"),
+                Div(Label("Password", fr="password"), Input(name="password", type="password", id="password", placeholder="Password", cls="uk-input"), cls="space-y-1 mt-3"),
+                Button("Create Account", type="submit", cls=ButtonT.primary + " uk-width-1-1 mt-4"),
+                hx_post="/auth/register", hx_target="body",
             ),
-            cls="flex justify-center",
-        ),
-        title="NewsGuru - Register",
+            Div(P("Already have an account?", cls="text-sm text-center mt-3"), A("Sign In", href="/login", cls="uk-button uk-button-text"), cls="text-center"),
+            cls="max-w-sm mx-auto mt-12",
+        ), cls="flex justify-center p-8",
     )
 
 @rt("/auth/login", methods=["POST"])
 def auth_login(email: str, password: str, sess):
     user = fetch_one("SELECT id, email, display_name FROM users WHERE email = :email", {"email": email})
-    if not user:
-        return RedirectResponse("/login", status_code=303)
-    sess["user_id"] = str(user["id"])
-    sess["user_email"] = user["email"]
-    sess["user_name"] = user.get("display_name", email)
+    if not user: return RedirectResponse("/login", status_code=303)
+    sess["user_id"] = str(user["id"]); sess["user_email"] = user["email"]; sess["user_name"] = user.get("display_name", email)
     return RedirectResponse("/", status_code=303)
 
 @rt("/auth/register", methods=["POST"])
 def auth_register(display_name: str, email: str, password: str, sess):
     existing = fetch_one("SELECT id FROM users WHERE email = :email", {"email": email})
-    if existing:
-        return RedirectResponse("/login", status_code=303)
-    execute_sql("""
-        INSERT INTO users (email, display_name) VALUES (:email, :name)
-    """, {"email": email, "name": display_name})
+    if existing: return RedirectResponse("/login", status_code=303)
+    execute_sql("INSERT INTO users (email, display_name) VALUES (:email, :name)", {"email": email, "name": display_name})
     user = fetch_one("SELECT id, email, display_name FROM users WHERE email = :email", {"email": email})
-    sess["user_id"] = str(user["id"])
-    sess["user_email"] = user["email"]
-    sess["user_name"] = user.get("display_name", email)
+    sess["user_id"] = str(user["id"]); sess["user_email"] = user["email"]; sess["user_name"] = user.get("display_name", email)
     return RedirectResponse("/", status_code=303)
 
 @rt("/auth/logout")
@@ -397,10 +322,238 @@ def auth_logout(sess):
     return RedirectResponse("/", status_code=303)
 
 
+# ===================== LAYOUT BUILDERS =====================
+
+def _nav_bar():
+    return Div(
+        A(DivLAligned(UkIcon("newspaper", height=22), Span("NewsGuru", cls="text-lg font-bold"), cls="gap-2"), href="/", cls="no-underline"),
+        DivLAligned(
+            A("Login", href="/login", cls="uk-button uk-button-default uk-button-small"),
+            A("Register", href="/register", cls="uk-button uk-button-primary uk-button-small"),
+            cls="gap-2",
+        ),
+        cls="app-nav",
+    )
+
+
+def _app_shell(session: dict, active_topic: str = None):
+    """Main 3-pane app shell. Chat-first, no login required."""
+    session_id = str(session["id"])
+    topic_slug = session.get("topic_slug", "general")
+    topics = _get_topics_with_counts()
+    grouped = _group_topics(topics)
+
+    # Check if session has existing messages
+    msg_count = fetch_one("SELECT COUNT(*) as cnt FROM chat_messages WHERE session_id = :sid", {"sid": session_id})
+    has_messages = msg_count and msg_count["cnt"] > 0
+
+    # Load existing messages
+    messages = []
+    if has_messages:
+        messages = fetch_all("SELECT role, content FROM chat_messages WHERE session_id = :sid ORDER BY created_at ASC", {"sid": session_id})
+
+    # Recent articles for center feed
+    recent_articles = _get_recent_articles(20)
+
+    return (
+        Title("NewsGuru"),
+        _nav_bar(),
+        Div(
+            # ===== LEFT PANE =====
+            Div(
+                # Topic cards
+                Div(
+                    Div("Topics", cls="sidebar-section-title"),
+                    *[_sidebar_topic(t, active=(t["slug"] == active_topic)) for t in grouped],
+                    cls="sidebar-section",
+                ),
+                # Trending
+                Div(
+                    Div("Trending", cls="sidebar-section-title"),
+                    _trending_widget(_get_trending()),
+                    cls="sidebar-section",
+                ),
+                # Top journalists
+                Div(
+                    Div("Journalists", cls="sidebar-section-title"),
+                    _journalist_widget(_get_top_journalists()),
+                    cls="sidebar-section",
+                ),
+                # Config
+                _config_panel(),
+                cls="left-pane",
+            ),
+
+            # ===== CENTER PANE =====
+            Div(
+                # Live feed shown in center when no chat active
+                Div(
+                    *[ArticleCard(a) for a in recent_articles],
+                    Div(
+                        id="live-feed-items",
+                        hx_ext="sse",
+                        sse_connect="/sse/feed",
+                        sse_swap="new-article",
+                        hx_swap="afterbegin",
+                    ),
+                    id="feed-in-center",
+                    cls="feed-area",
+                    style="" if not has_messages else "display:none;",
+                ),
+                # Chat messages (empty initially, fills when user chats)
+                Div(
+                    *[ChatMessageBubble(m["role"], m["content"]) for m in messages],
+                    id="chat-messages",
+                    cls="feed-area",
+                    style="display:none;" if not has_messages else "",
+                ),
+                # Chat input — always at bottom
+                Div(
+                    Form(
+                        DivFullySpaced(
+                            Input(name="msg", id="chat-input", placeholder="Ask about the news...", autofocus=True, cls="uk-input uk-width-expand"),
+                            Button(UkIcon("send", height=16), type="submit", cls=ButtonT.primary),
+                            cls="gap-2",
+                        ),
+                        hx_post=f"/chat/{session_id}/send",
+                        hx_target="#chat-messages",
+                        hx_swap="beforeend",
+                        hx_on__before_request="document.getElementById('chat-input').disabled=true; document.getElementById('chat-messages').style.display='';",
+                        hx_on__after_request="this.reset();",
+                    ),
+                    cls="chat-input-area",
+                ),
+                cls="center-pane",
+            ),
+
+            # ===== RIGHT PANE (hidden until chat starts) =====
+            Div(
+                H4(DivLAligned(UkIcon("rss", height=16), Span("Live Feed", cls="text-sm font-semibold"), cls="gap-2")),
+                Div(
+                    *[ArticleCard(a) for a in recent_articles[:10]],
+                    Div(
+                        id="right-feed-items",
+                        hx_ext="sse",
+                        sse_connect="/sse/feed",
+                        sse_swap="new-article",
+                        hx_swap="afterbegin",
+                    ),
+                ),
+                id="right-pane",
+                cls="right-pane" + ("" if has_messages else " hidden"),
+            ),
+
+            cls="app-layout",
+        ),
+    )
+
+
+def _sidebar_topic(topic: dict, active: bool = False):
+    count = topic.get("article_count", 0)
+    return A(
+        DivLAligned(
+            UkIcon(topic["icon"], height=18),
+            Div(
+                Span(topic["name"], cls="text-sm font-medium"),
+                Span(f" ({count})", cls="text-xs text-muted"),
+            ),
+            cls="gap-2",
+        ),
+        href=f"/topic/{topic['slug']}",
+        cls="sidebar-topic no-underline" + (" active" if active else ""),
+        style=f"border-left-color: {topic['color']};" if active else "",
+    )
+
+
+def _trending_widget(topics: list[dict]):
+    if not topics:
+        return P("No trending topics yet.", cls="text-xs text-muted px-2")
+    items = []
+    for t in topics:
+        items.append(
+            DivFullySpaced(
+                DivLAligned(
+                    Span("", style=f"width:8px;height:8px;border-radius:50%;background:{t['color']};display:inline-block;"),
+                    A(t["name"], href=f"/topic/{t['slug']}", cls="text-xs no-underline"),
+                    cls="gap-1",
+                ),
+                Span(f"{t['cnt']}", cls="text-xs text-muted"),
+                cls="px-2 py-0.5",
+            )
+        )
+    return Div(*items, hx_get="/api/trending", hx_trigger="every 60s", hx_swap="outerHTML")
+
+
+def _journalist_widget(journalists: list[dict]):
+    if not journalists:
+        return P("No journalists tracked yet.", cls="text-xs text-muted px-2")
+    items = []
+    for j in journalists[:7]:
+        items.append(
+            DivFullySpaced(
+                Span(j["name"], cls="text-xs"),
+                Span(str(j["article_count"]), cls="text-xs text-muted"),
+                cls="px-2 py-0.5",
+            )
+        )
+    return Div(*items, hx_get="/api/journalists", hx_trigger="every 120s", hx_swap="outerHTML")
+
+
+def _config_panel():
+    sources = fetch_all("SELECT id, name, domain, rss_url, language, is_active FROM sources ORDER BY name")
+    return Details(
+        Summary(
+            DivLAligned(UkIcon("settings", height=14), Span("Sources", cls="text-xs font-semibold"), cls="gap-1"),
+            cls="cursor-pointer list-none px-2 py-1",
+        ),
+        Div(
+            Form(
+                Input(name="name", placeholder="Name", cls="uk-input uk-form-small mb-1"),
+                Input(name="domain", placeholder="domain.com", cls="uk-input uk-form-small mb-1"),
+                Input(name="rss_url", placeholder="RSS URL", cls="uk-input uk-form-small mb-1"),
+                Select(Option("EN", value="en"), Option("ET", value="et"), name="language", cls="uk-select uk-form-small mb-1"),
+                Button("Add", type="submit", cls=ButtonT.primary + " uk-button-small uk-width-1-1"),
+                hx_post="/api/sources/add", hx_target="#sources-list", hx_swap="outerHTML",
+            ),
+            _sources_list(sources),
+            cls="px-2 mt-2",
+        ),
+        cls="sidebar-section mt-2",
+    )
+
+
+def _sources_list(sources: list[dict]):
+    rows = []
+    for s in sources:
+        active_cls = "" if s["is_active"] else "opacity-50"
+        btn_text = "Off" if s["is_active"] else "On"
+        btn_cls = "uk-button-danger" if s["is_active"] else "uk-button-primary"
+        rows.append(
+            DivFullySpaced(
+                Span(s["name"], cls=f"text-xs {active_cls}"),
+                Button(btn_text, cls=f"uk-button {btn_cls} uk-button-small", style="padding:2px 8px; font-size:0.65rem;",
+                       hx_post=f"/api/sources/{s['id']}/toggle", hx_target="#sources-list", hx_swap="outerHTML"),
+                cls="py-0.5",
+            )
+        )
+    return Div(*rows, id="sources-list")
+
+
 # ===================== HELPERS =====================
 
+def _get_recent_articles(limit: int = 20) -> list[dict]:
+    return fetch_all("""
+        SELECT a.id, a.title, a.url, a.author, a.published_at,
+               s.name AS source_name,
+               asent.label AS sentiment_label, asent.score AS sentiment_score
+        FROM articles a
+        LEFT JOIN sources s ON s.id = a.source_id
+        LEFT JOIN article_sentiments asent ON asent.article_id = a.id
+        ORDER BY a.created_at DESC
+        LIMIT :limit
+    """, {"limit": limit})
+
 def _group_topics(topics: list[dict]) -> list[dict]:
-    """Merge 6 topics into 3 grouped cards."""
     groups = {
         "News & Politics": {"slugs": ["politics", "culture"], "icon": "landmark", "color": "#ef4444"},
         "Business & Tech": {"slugs": ["business", "technology"], "icon": "briefcase", "color": "#3b82f6"},
@@ -410,112 +563,23 @@ def _group_topics(topics: list[dict]) -> list[dict]:
     topic_map = {t["slug"]: t for t in topics}
     for name, g in groups.items():
         count = sum(topic_map.get(s, {}).get("article_count", 0) for s in g["slugs"])
-        # Pick latest headline from any sub-topic
-        headline = None
-        for s in g["slugs"]:
-            h = topic_map.get(s, {}).get("latest_headline")
-            if h:
-                headline = h
-                break
-        # Use first slug as default chat target
-        result.append({
-            "name": name,
-            "slug": g["slugs"][0],
-            "icon": g["icon"],
-            "color": g["color"],
-            "article_count": count,
-            "latest_headline": headline,
-            "sub_slugs": g["slugs"],
-        })
+        result.append({"name": name, "slug": g["slugs"][0], "icon": g["icon"], "color": g["color"],
+                        "article_count": count, "sub_slugs": g["slugs"]})
     return result
 
-
-def _config_panel():
-    """Expandable config section at bottom of home page."""
-    sources = fetch_all("SELECT id, name, domain, rss_url, language, is_active FROM sources ORDER BY name")
-    return Details(
-        Summary(
-            DivLAligned(UkIcon("settings", height=16), Span("Configure Sources", cls="text-sm font-semibold")),
-            cls="cursor-pointer list-none p-2",
-        ),
-        Div(
-            # Add source form
-            Form(
-                Grid(
-                    Input(name="name", placeholder="Source name", cls="uk-input uk-form-small"),
-                    Input(name="domain", placeholder="domain.com", cls="uk-input uk-form-small"),
-                    Input(name="rss_url", placeholder="RSS URL", cls="uk-input uk-form-small"),
-                    Select(
-                        Option("English", value="en"),
-                        Option("Estonian", value="et"),
-                        name="language", cls="uk-select uk-form-small",
-                    ),
-                    cols=4, cls="gap-2",
-                ),
-                Button("Add Source", type="submit", cls=ButtonT.primary + " uk-button-small mt-2"),
-                hx_post="/api/sources/add",
-                hx_target="#sources-list",
-                hx_swap="outerHTML",
-            ),
-            # Sources list
-            Div(id="sources-list", cls="mt-3"),
-            _sources_list(sources),
-            cls="p-3",
-        ),
-        cls="border rounded mt-4",
-    )
-
-
-def _sources_list(sources: list[dict]):
-    """Render the list of sources with subscribe/unsubscribe toggles."""
-    rows = []
-    for s in sources:
-        active_cls = "" if s["is_active"] else "opacity-50"
-        btn_text = "Unsubscribe" if s["is_active"] else "Subscribe"
-        btn_cls = "uk-button-danger uk-button-small" if s["is_active"] else "uk-button-primary uk-button-small"
-        rows.append(
-            DivFullySpaced(
-                Div(
-                    Strong(s["name"], cls="text-sm"),
-                    Small(f" ({s['domain']}) [{s['language'].upper()}]", cls="text-muted"),
-                    cls=active_cls,
-                ),
-                Button(
-                    btn_text,
-                    cls=f"uk-button {btn_cls}",
-                    hx_post=f"/api/sources/{s['id']}/toggle",
-                    hx_target="#sources-list",
-                    hx_swap="outerHTML",
-                ),
-                cls="py-1 border-b",
-            )
-        )
-    return Div(*rows, id="sources-list")
-
-
 def _get_topics_with_counts() -> list[dict]:
-    rows = fetch_all("""
+    return fetch_all("""
         SELECT t.name, t.slug, t.icon, t.color, t.display_order,
-               COALESCE(cnt.c, 0) AS article_count,
-               latest.title AS latest_headline
+               COALESCE(cnt.c, 0) AS article_count
         FROM topics t
         LEFT JOIN (
-            SELECT at2.topic_id, COUNT(*) AS c
-            FROM article_topics at2
+            SELECT at2.topic_id, COUNT(*) AS c FROM article_topics at2
             JOIN articles a ON a.id = at2.article_id
             WHERE a.created_at > NOW() - INTERVAL '24 hours'
             GROUP BY at2.topic_id
         ) cnt ON cnt.topic_id = t.id
-        LEFT JOIN LATERAL (
-            SELECT a.title FROM articles a
-            JOIN article_topics at3 ON at3.article_id = a.id
-            WHERE at3.topic_id = t.id
-            ORDER BY a.created_at DESC LIMIT 1
-        ) latest ON true
-        WHERE t.is_active = true
-        ORDER BY t.display_order
+        WHERE t.is_active = true ORDER BY t.display_order
     """)
-    return rows
 
 def _get_trending() -> list[dict]:
     return fetch_all("""
@@ -525,17 +589,14 @@ def _get_trending() -> list[dict]:
         JOIN articles a ON a.id = at2.article_id
         WHERE a.created_at > NOW() - INTERVAL '24 hours'
         GROUP BY t.id, t.name, t.slug, t.color
-        ORDER BY cnt DESC
-        LIMIT 6
+        ORDER BY cnt DESC LIMIT 6
     """)
 
 def _get_top_journalists() -> list[dict]:
     return fetch_all("""
         SELECT j.name, j.article_count, s.name AS source_name
-        FROM journalists j
-        LEFT JOIN sources s ON s.id = j.source_id
-        ORDER BY j.article_count DESC, j.last_seen_at DESC
-        LIMIT 10
+        FROM journalists j LEFT JOIN sources s ON s.id = j.source_id
+        ORDER BY j.article_count DESC, j.last_seen_at DESC LIMIT 10
     """)
 
 def _get_or_create_session(topic_slug: str) -> dict:
@@ -544,23 +605,9 @@ def _get_or_create_session(topic_slug: str) -> dict:
         WHERE topic_slug = :slug AND created_at > NOW() - INTERVAL '1 hour'
         ORDER BY created_at DESC LIMIT 1
     """, {"slug": topic_slug})
-    if sess:
-        return sess
-    execute_sql("""
-        INSERT INTO chat_sessions (topic_slug, title)
-        VALUES (:slug, 'New chat')
-    """, {"slug": topic_slug})
-    return fetch_one("""
-        SELECT id, topic_slug, title, created_at FROM chat_sessions
-        WHERE topic_slug = :slug ORDER BY created_at DESC LIMIT 1
-    """, {"slug": topic_slug})
-
-def _get_recent_sessions(topic_slug: str) -> list[dict]:
-    return fetch_all("""
-        SELECT id, title, created_at FROM chat_sessions
-        WHERE topic_slug = :slug
-        ORDER BY updated_at DESC LIMIT 10
-    """, {"slug": topic_slug})
+    if sess: return sess
+    execute_sql("INSERT INTO chat_sessions (topic_slug, title) VALUES (:slug, 'New chat')", {"slug": topic_slug})
+    return fetch_one("SELECT id, topic_slug, title, created_at FROM chat_sessions WHERE topic_slug = :slug ORDER BY created_at DESC LIMIT 1", {"slug": topic_slug})
 
 
 # ===================== STARTUP =====================
@@ -570,9 +617,6 @@ async def on_startup():
     for t in get_topics():
         topic_queues[t["slug"]] = asyncio.Queue()
     from services.feed_scheduler import run_feed_scheduler
-    asyncio.create_task(run_feed_scheduler(
-        config, shutdown_event, article_queue, topic_queues
-    ))
-
+    asyncio.create_task(run_feed_scheduler(config, shutdown_event, article_queue, topic_queues))
 
 serve(port=5020)
