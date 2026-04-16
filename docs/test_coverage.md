@@ -1,8 +1,8 @@
 # NewsGuru Test Coverage Report
 
-Generated: 2026-04-16 21:46:45
+Generated: 2026-04-16 22:13:55
 
-**Total: 47 tests | Passed: 47 | Failed: 0**
+**Total: 55 tests | Passed: 55 | Failed: 0**
 
 | # | Test | Status | Detail |
 |---|------|--------|--------|
@@ -17,50 +17,58 @@ Generated: 2026-04-16 21:46:45
 | 9 | Left pane: Sources section | PASS |  |
 | 10 | Left pane: Journalists section | PASS |  |
 | 11 | Left pane: Methodology link | PASS |  |
-| 12 | Starter cards present | PASS | found 6 (0 ok if session has history) |
-| 13 | Live feed has articles | PASS | 20 items |
-| 14 | Login page returns 200 | PASS |  |
-| 15 | Login has email field | PASS |  |
-| 16 | Register page returns 200 | PASS |  |
-| 17 | Register has name field | PASS |  |
-| 18 | Methodology page returns 200 | PASS |  |
-| 19 | Methodology: has scoring table | PASS |  |
-| 20 | Methodology: has philosophy | PASS |  |
-| 21 | Methodology: has distribution | PASS |  |
-| 22 | Treemap page returns 200 | PASS |  |
-| 23 | Treemap: Plotly chart rendered | PASS |  |
-| 24 | Treemap: 'What is this?' link | PASS |  |
-| 25 | Treemap in chat: iframe present | PASS |  |
-| 26 | Treemap in chat: headlines below | PASS |  |
-| 27 | Treemap in chat: share widget | PASS |  |
-| 28 | Journalist chart page returns 200 | PASS |  |
-| 29 | Journalist map: Plotly rendered | PASS |  |
-| 30 | Journalist map in chat: iframe present | PASS |  |
-| 31 | Journalist map in chat: journalist list below | PASS |  |
-| 32 | Journalist map in chat: share widget | PASS |  |
-| 33 | Left pane: Journalist Map link | PASS |  |
-| 34 | Chat: user message shown | PASS |  |
-| 35 | Chat: assistant response present | PASS | 2 responses |
-| 36 | Chat: share widget present | PASS |  |
-| 37 | Topic /politics returns 200 | PASS |  |
-| 38 | Topic /technology returns 200 | PASS |  |
-| 39 | Invalid topic redirects | PASS | url=http://localhost:5020/topic/nonexistent |
-| 40 | API /api/trending returns 200 | PASS |  |
-| 41 | API /api/journalists returns 200 | PASS |  |
-| 42 | API /api/sources returns 200 | PASS |  |
-| 43 | SSE /sse/feed returns 200 | PASS |  |
-| 44 | Language switch without login redirects to /login | PASS |  |
-| 45 | Mobile: tab bar visible | PASS |  |
-| 46 | Mobile: left pane hidden | PASS |  |
-| 47 | Session: history links present | PASS | 8 sessions |
+| 12 | Left pane: About Us link | PASS |  |
+| 13 | Starter cards present | PASS | found 6 (0 ok if session has history) |
+| 14 | Live feed has articles | PASS | 20 items |
+| 15 | Login page returns 200 | PASS |  |
+| 16 | Login has email field | PASS |  |
+| 17 | Register page returns 200 | PASS |  |
+| 18 | Register has name field | PASS |  |
+| 19 | Methodology page returns 200 | PASS |  |
+| 20 | Methodology: has scoring table | PASS |  |
+| 21 | Methodology: has philosophy | PASS |  |
+| 22 | Methodology: has distribution | PASS |  |
+| 23 | Methodology: has table of contents | PASS |  |
+| 24 | Methodology: has journalist map section | PASS |  |
+| 25 | Methodology: has data sources | PASS |  |
+| 26 | About page returns 200 | PASS |  |
+| 27 | About: has Predictive Labs | PASS |  |
+| 28 | About: has transparency section | PASS |  |
+| 29 | About: has significance explanation | PASS |  |
+| 30 | Treemap page returns 200 | PASS |  |
+| 31 | Treemap: Plotly chart rendered | PASS |  |
+| 32 | Treemap: 'What is this?' link | PASS |  |
+| 33 | Treemap in chat: iframe present | PASS |  |
+| 34 | Treemap in chat: headlines below | PASS |  |
+| 35 | Treemap in chat: share widget | PASS |  |
+| 36 | Journalist chart page returns 200 | PASS |  |
+| 37 | Journalist map: Plotly rendered | PASS |  |
+| 38 | Journalist map in chat: iframe present | PASS |  |
+| 39 | Journalist map in chat: journalist list below | PASS |  |
+| 40 | Journalist map in chat: share widget | PASS |  |
+| 41 | Left pane: Journalist Map link | PASS |  |
+| 42 | Chat: user message shown | PASS |  |
+| 43 | Chat: assistant response present | PASS | 2 responses |
+| 44 | Chat: share widget present | PASS |  |
+| 45 | Topic /politics returns 200 | PASS |  |
+| 46 | Topic /technology returns 200 | PASS |  |
+| 47 | Invalid topic redirects | PASS | url=http://localhost:5020/topic/nonexistent |
+| 48 | API /api/trending returns 200 | PASS |  |
+| 49 | API /api/journalists returns 200 | PASS |  |
+| 50 | API /api/sources returns 200 | PASS |  |
+| 51 | SSE /sse/feed returns 200 | PASS |  |
+| 52 | Language switch without login redirects to /login | PASS |  |
+| 53 | Mobile: tab bar visible | PASS |  |
+| 54 | Mobile: left pane hidden | PASS |  |
+| 55 | Session: history links present | PASS | 8 sessions |
 
 ## Test Categories
 
-- **Page Load**: 15/15 passed
+- **Page Load**: 16/16 passed
 - **Authentication**: 5/5 passed
-- **Static Pages**: 5/5 passed
+- **Static Pages**: 13/13 passed
 - **Treemap**: 6/6 passed
-- **Journalist Map**: 8/8 passed
+- **Journalist Map**: 9/9 passed
 - **Chat**: 11/11 passed
 - **Navigation**: 4/4 passed
 - **API**: 3/3 passed
@@ -77,6 +85,7 @@ All screenshots saved to `screenshots/regression/`
 - [02-login.png](../screenshots/regression/02-login.png)
 - [03-register.png](../screenshots/regression/03-register.png)
 - [04-methodology.png](../screenshots/regression/04-methodology.png)
+- [04b-about.png](../screenshots/regression/04b-about.png)
 - [05-treemap-standalone.png](../screenshots/regression/05-treemap-standalone.png)
 - [06-treemap-in-chat.png](../screenshots/regression/06-treemap-in-chat.png)
 - [06b-journalist-standalone.png](../screenshots/regression/06b-journalist-standalone.png)

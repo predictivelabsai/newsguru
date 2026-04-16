@@ -166,6 +166,24 @@ def methodology_page(sess):
     )
 
 
+@rt("/about")
+def about_page(sess):
+    """About us page."""
+    lang = get_lang(sess)
+    user = _get_session_user(sess)
+    return (
+        Title("NewsGuru - About"),
+        _nav_bar(lang, user),
+        Container(
+            Div(
+                H2("About NewsGuru", cls="text-2xl font-bold mb-4"),
+                Div(NotStr(_about_html()), cls="text-sm space-y-3"),
+                cls="max-w-3xl mx-auto py-8",
+            ),
+        ),
+    )
+
+
 @rt("/set-lang/{lang_code}")
 def set_language(lang_code: str, sess):
     """Switch UI language — requires login."""
@@ -637,12 +655,16 @@ def _app_shell(session: dict, active_topic: str = None, lang: str = "en", user: 
                     _journalist_widget(_get_top_journalists(), lang),
                     cls="sidebar-section",
                 ),
-                # Methodology link
+                # Info links
                 Div(
                     Div("Info", cls="sidebar-section-title"),
                     A(
                         DivLAligned(UkIcon("book-open", height=16), Span("Methodology", cls="text-sm font-medium"), cls="gap-2"),
                         href="/methodology", cls="sidebar-topic no-underline",
+                    ),
+                    A(
+                        DivLAligned(UkIcon("info", height=16), Span("About Us", cls="text-sm font-medium"), cls="gap-2"),
+                        href="/about", cls="sidebar-topic no-underline",
                     ),
                     cls="sidebar-section",
                 ),
@@ -804,6 +826,53 @@ def _methodology_html() -> str:
 <p style="font-size:0.85rem;">Articles are fetched via RSS every 5 minutes, with full text extracted using newspaper4k. Additional articles are discovered via Tavily and Exa web search APIs.</p>
 
 <p style="color:#6b7280; margin-top:24px;"><em>Inspired by <a href="https://www.newsminimalist.com/about" target="_blank" style="color:#3b82f6;">News Minimalist</a>. Powered by xAI Grok.</em></p>
+"""
+
+
+def _about_html() -> str:
+    return """
+<p style="font-size:1rem; line-height:1.7;">
+NewsGuru is built by <a href="https://www.predictivelabs.ai" target="_blank" style="color:#2563eb; font-weight:600;">Predictive Labs</a>, an AI research company focused on making information more accessible, transparent, and useful.
+</p>
+
+<h3>Why We Built This</h3>
+<p>The modern news cycle is broken. Sensationalism drives clicks. Algorithms optimize for engagement, not understanding. Important stories get buried under celebrity gossip, while minor events get inflated into crises. Readers are left overwhelmed, misinformed, or simply tuned out.</p>
+<p>We believe AI can fix this — not by generating more content, but by <strong>filtering and scoring</strong> what already exists.</p>
+
+<h3>Our Approach: Transparency Over Bias</h3>
+<p>Every news aggregator makes editorial choices. The difference is whether those choices are hidden or visible. NewsGuru makes its methodology completely transparent:</p>
+<ul>
+<li><strong>Significance scoring is open:</strong> Every article receives a 0-10 score based on 7 explicit factors (Scale, Impact, Novelty, Potential, Legacy, Positivity, Credibility). The <a href="/methodology" style="color:#2563eb;">full methodology</a> is published, including weights and formulas.</li>
+<li><strong>Sentiment is measured, not assumed:</strong> Each article is independently scored for sentiment by an LLM. You see the number, not a human editor's opinion about whether a story is "good" or "bad".</li>
+<li><strong>Sources are diverse by design:</strong> We aggregate from Estonian and English outlets across public broadcasters (ERR, BBC), financial press (Bloomberg, FT, WSJ), and national newspapers (Postimees). No single editorial voice dominates.</li>
+<li><strong>Journalist tracking is data-driven:</strong> We show who writes what, how often, and with what impact — letting readers assess credibility themselves rather than relying on brand reputation alone.</li>
+</ul>
+
+<h3>Why Significance Scoring Matters</h3>
+<p>Not all news is created equal. A local sports result and a geopolitical crisis both appear as "headlines" in traditional feeds. Significance scoring separates them:</p>
+<ul>
+<li><strong>Cuts through noise:</strong> On a typical day, ~60% of articles score below 3 (routine news). Only 5-15 articles score above 5. If nothing important happened, the feed is short — by design.</li>
+<li><strong>Counteracts negativity bias:</strong> News outlets systematically overreport negative events. Our Positivity factor (weight 1/20) brings the balance back, ensuring breakthroughs and positive developments surface alongside crises.</li>
+<li><strong>Enables informed citizenship:</strong> When you can see that a story scores 8.0 on significance while a viral tweet scores 1.5, you can make better decisions about where to spend your attention.</li>
+</ul>
+
+<h3>Why Sentiment Scoring Matters</h3>
+<p>Media bias isn't just about what stories are covered — it's about <em>how</em> they're framed. The same event can be reported with wildly different emotional framing depending on the outlet. Our sentiment scoring:</p>
+<ul>
+<li><strong>Makes framing visible:</strong> A score of -0.85 on a story that another outlet scores at +0.30 tells you something important about editorial choices.</li>
+<li><strong>Enables cross-source comparison:</strong> See the same event through different emotional lenses. ERR might report a policy neutrally (+0.10) while a tabloid frames it negatively (-0.70).</li>
+<li><strong>Builds media literacy:</strong> Over time, you start recognizing which sources consistently frame stories in certain ways. That's not a bug — it's a feature.</li>
+</ul>
+
+<h3>The Bigger Picture</h3>
+<p>We're not trying to tell you what to think. We're trying to give you better tools to think with. Significance scores, sentiment analysis, journalist tracking, and source diversity are all pieces of a larger puzzle: <strong>how do we help people navigate information without being manipulated by it?</strong></p>
+<p>This is an ongoing experiment. The scoring methodology will evolve. The sources will expand. The tools will get sharper. But the principle stays the same: <strong>transparency over curation, data over opinion, signal over noise.</strong></p>
+
+<div style="margin-top:32px; padding:20px; background:#f0f9ff; border-radius:12px; border:1px solid #bae6fd;">
+<p style="margin:0 0 8px;"><strong>Predictive Labs</strong></p>
+<p style="margin:0 0 4px; color:#4b5563;">AI research company building tools for transparent information access.</p>
+<p style="margin:0;"><a href="https://www.predictivelabs.ai" target="_blank" style="color:#2563eb; font-weight:500;">www.predictivelabs.ai</a></p>
+</div>
 """
 
 

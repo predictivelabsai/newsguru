@@ -59,6 +59,7 @@ async def run():
         log("Left pane: Sources section", "SOURCES" in body_text or "Sources" in body_text)
         log("Left pane: Journalists section", "JOURNALISTS" in body_text or "Journalists" in body_text)
         log("Left pane: Methodology link", "Methodology" in body_text)
+        log("Left pane: About Us link", "About Us" in body_text)
 
         # Check starter cards (only on fresh session — may be 0 if session has messages)
         starters = await page.evaluate('() => document.querySelectorAll(".starter-card").length')
@@ -91,7 +92,19 @@ async def run():
         log("Methodology: has scoring table", "Scale" in meth_text and "Impact" in meth_text)
         log("Methodology: has philosophy", "Significance is objective" in meth_text)
         log("Methodology: has distribution", "0-2" in meth_text)
+        log("Methodology: has table of contents", "Contents" in meth_text)
+        log("Methodology: has journalist map section", "Journalist Map" in meth_text)
+        log("Methodology: has data sources", "Data Sources" in meth_text)
         await page.screenshot(path=str(SCREENSHOTS / "04-methodology.png"))
+
+        # ===== 4b. About page =====
+        resp = await page.goto(f"{BASE}/about")
+        log("About page returns 200", resp.status == 200)
+        about_text = await page.evaluate('() => document.body.innerText')
+        log("About: has Predictive Labs", "Predictive Labs" in about_text or "predictivelabs" in about_text)
+        log("About: has transparency section", "Transparency" in about_text or "transparency" in about_text)
+        log("About: has significance explanation", "Significance Scoring Matters" in about_text)
+        await page.screenshot(path=str(SCREENSHOTS / "04b-about.png"))
 
         # ===== 5. Treemap standalone =====
         print("\n--- Treemap ---")
@@ -265,7 +278,7 @@ def _write_report():
     categories = {
         "Page Load": ["Homepage", "3-pane", "Left pane", "Starter", "Live feed"],
         "Authentication": ["Login", "Register"],
-        "Static Pages": ["Methodology"],
+        "Static Pages": ["Methodology", "About"],
         "Treemap": ["Treemap"],
         "Journalist Map": ["Journalist"],
         "Chat": ["Chat", "share"],
