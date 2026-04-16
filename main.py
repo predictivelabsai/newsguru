@@ -16,35 +16,47 @@ from db.pool import get_db, fetch_all, fetch_one, execute_sql
 config = load_config()
 
 sse_script = Script(src="https://unpkg.com/htmx-ext-sse@2.2.3/sse.js")
-plotly_script = Script(src="https://cdn.plot.ly/plotly-2.35.0.min.js")
+# Plotly loaded lazily on first treemap request (not on every page load)
 plotly_renderer = Script("""
+    var _plotlyLoaded = false;
+    function _loadPlotly(cb) {
+        if (_plotlyLoaded || typeof Plotly !== 'undefined') { _plotlyLoaded=true; cb(); return; }
+        var s = document.createElement('script');
+        s.src = 'https://cdn.plot.ly/plotly-basic-2.35.0.min.js';
+        s.onload = function() { _plotlyLoaded=true; cb(); };
+        document.head.appendChild(s);
+    }
     function renderTreemaps() {
-        document.querySelectorAll('.treemap-pending').forEach(function(el) {
-            el.classList.remove('treemap-pending');
-            try {
-                var d = JSON.parse(atob(el.getAttribute('data-treemap')));
-                Plotly.newPlot(el.id, [{
-                    type: 'treemap',
-                    labels: d.labels,
-                    parents: d.labels.map(function(){return '';}),
-                    values: d.values,
-                    text: d.hover,
-                    textinfo: 'label+value',
-                    textfont: {size: 14},
-                    hovertemplate: '<b>%{label}</b><br>%{text}<extra></extra>',
-                    marker: {
-                        colors: d.colors,
-                        colorscale: [[0,'#e5e7eb'],[0.3,'#93c5fd'],[0.5,'#fbbf24'],[0.7,'#f97316'],[1,'#dc2626']],
-                        cmin: 0, cmax: 10,
-                        colorbar: {title:'Score', thickness:12, len:0.8, tickvals:[0,3,5,7,10]},
-                        line: {width:2, color:'white'}
-                    }
-                }], {margin:{t:5,l:5,r:5,b:5}, height:320, font:{family:'system-ui'}},
-                {responsive:true, displayModeBar:false});
-            } catch(e) { el.innerHTML='<p style="color:#ef4444;font-size:0.8rem;">Chart error: '+e.message+'</p>'; }
+        var els = document.querySelectorAll('.treemap-pending');
+        if (!els.length) return;
+        _loadPlotly(function() {
+            els.forEach(function(el) {
+                el.classList.remove('treemap-pending');
+                el.innerHTML = '<p style="color:#6b7280;font-size:0.8rem;text-align:center;padding-top:140px;">Rendering chart...</p>';
+                try {
+                    var d = JSON.parse(atob(el.getAttribute('data-treemap')));
+                    el.innerHTML = '';
+                    Plotly.newPlot(el.id, [{
+                        type: 'treemap', labels: d.labels,
+                        parents: d.parents,
+                        values: d.values, text: d.hover,
+                        branchvalues: 'total',
+                        textinfo: 'label+value', textfont: {size: 12},
+                        pathbar: {visible: true},
+                        hovertemplate: '<b>%{label}</b><br>%{text}<extra></extra>',
+                        marker: {
+                            colors: d.colors,
+                            colorscale: [[0,'#e5e7eb'],[0.3,'#93c5fd'],[0.5,'#fbbf24'],[0.7,'#f97316'],[1,'#dc2626']],
+                            cmin:0, cmax:10,
+                            colorbar: {title:'Score', thickness:12, len:0.8, tickvals:[0,3,5,7,10]},
+                            line: {width:2, color:'white'}
+                        }
+                    }], {margin:{t:5,l:5,r:5,b:5}, height:320, font:{family:'system-ui'}},
+                    {responsive:true, displayModeBar:false});
+                } catch(e) { el.innerHTML='<p style="color:#ef4444;font-size:0.8rem;">Chart error: '+e.message+'</p>'; }
+            });
         });
     }
-    // Poll for pending charts every 500ms (SSE innerHTML doesn't trigger MutationObserver reliably)
     setInterval(renderTreemaps, 500);
 """)
 pwa_headers = (
@@ -58,11 +70,11 @@ app, rt = fast_app(
     hdrs=(
         Theme.blue.headers(highlightjs=True),
         sse_script,
-        plotly_script,
         plotly_renderer,
         *pwa_headers,
         Style("""
             /* Layout */
+            html, body { overflow-x: hidden; max-width: 100vw; }
             .app-layout { display: flex; gap: 0; height: calc(100vh - 60px); overflow: hidden; }
             .left-pane { width: 240px; min-width: 240px; overflow-y: auto; padding: 12px; border-right: 1px solid #e5e7eb; }
             .center-pane { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
@@ -401,6 +413,14 @@ def api_toggle_source(source_id: str):
     return _sources_list(sources)
 
 
+@rt("/api/clear-history", methods=["POST"])
+def api_clear_history():
+    """Delete all chat sessions and messages."""
+    execute_sql("DELETE FROM chat_messages")
+    execute_sql("DELETE FROM chat_sessions")
+    return RedirectResponse("/", status_code=303)
+
+
 # ===================== AUTH ROUTES =====================
 
 @rt("/login")
@@ -557,13 +577,17 @@ def _app_shell(session: dict, active_topic: str = None, lang: str = "en", user: 
         Div(
             # ===== LEFT PANE =====
             Div(
-                # New Chat + Chat History
+                # New Chat + Clear History + Chat History
                 Div(
-                    A(
-                        DivLAligned(UkIcon("plus", height=16), Span("New Chat", cls="text-sm font-medium"), cls="gap-2"),
-                        href="/",
-                        cls="sidebar-topic no-underline",
-                        style="border: 1px dashed #d1d5db; border-left: none;",
+                    DivFullySpaced(
+                        A(
+                            DivLAligned(UkIcon("plus", height=14), Span("New Chat", cls="text-xs font-medium"), cls="gap-1"),
+                            href="/", cls="sidebar-topic no-underline", style="border: 1px dashed #d1d5db; border-left: none; flex:1;",
+                        ),
+                        Button(UkIcon("trash-2", height=12), cls="uk-button uk-button-default uk-button-small",
+                               style="padding:2px 6px;", title="Clear history",
+                               hx_post="/api/clear-history", hx_target="body", hx_confirm="Clear all chat history?"),
+                        cls="gap-2 mb-1",
                     ),
                     *_chat_history_items(session_id),
                     cls="sidebar-section",
@@ -611,6 +635,7 @@ def _app_shell(session: dict, active_topic: str = None, lang: str = "en", user: 
             # ===== CENTER PANE (always chat) =====
             Div(
                 Div(*msg_bubbles, id="chat-messages", cls="feed-area"),
+                Script("setTimeout(function(){var c=document.getElementById('chat-messages'); c.scrollTop=c.scrollHeight;},100);"),
                 Div(
                     Form(
                         DivFullySpaced(
@@ -622,7 +647,7 @@ def _app_shell(session: dict, active_topic: str = None, lang: str = "en", user: 
                         hx_target="#chat-messages",
                         hx_swap="beforeend",
                         hx_on__before_request="document.getElementById('chat-input').disabled=true;",
-                        hx_on__after_request="this.reset();",
+                        hx_on__after_request="this.reset(); setTimeout(function(){var c=document.getElementById('chat-messages'); c.scrollTop=c.scrollHeight;},200);",
                     ),
                     cls="chat-input-area",
                 ),
@@ -749,7 +774,7 @@ def _starter_cards(session_id: str, lang: str = "en"):
             Div(
                 DivLAligned(UkIcon(icon, height=14), Span(question), cls="gap-2"),
                 cls="starter-card",
-                onclick=f"document.getElementById('chat-input').value={repr(question)}; document.getElementById('chat-input').form.requestSubmit(); this.closest('.starter-grid').remove();",
+                onclick=f"var inp=document.getElementById('chat-input'); inp.value={repr(question)}; inp.disabled=false; inp.form.requestSubmit(); this.closest('.starter-grid').remove();",
             )
         )
     return Div(*cards, cls="starter-grid")
