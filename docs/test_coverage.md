@@ -1,8 +1,8 @@
 # NewsGuru Test Coverage Report
 
-Generated: 2026-04-16 21:17:41
+Generated: 2026-04-16 21:24:04
 
-**Total: 45 tests | Passed: 45 | Failed: 0**
+**Total: 47 tests | Passed: 47 | Failed: 0**
 
 | # | Test | Status | Detail |
 |---|------|--------|--------|
@@ -32,34 +32,36 @@ Generated: 2026-04-16 21:17:41
 | 24 | Treemap: 'What is this?' link | PASS |  |
 | 25 | Treemap in chat: iframe present | PASS |  |
 | 26 | Treemap in chat: headlines below | PASS |  |
-| 27 | Journalist chart page returns 200 | PASS |  |
-| 28 | Journalist map: Plotly rendered | PASS |  |
-| 29 | Journalist map in chat: iframe present | PASS |  |
-| 30 | Journalist map in chat: journalist list below | PASS |  |
-| 31 | Left pane: Journalist Map link | PASS |  |
-| 32 | Chat: user message shown | PASS |  |
-| 33 | Chat: assistant response present | PASS | 2 responses |
-| 34 | Chat: share widget present | PASS |  |
-| 35 | Topic /politics returns 200 | PASS |  |
-| 36 | Topic /technology returns 200 | PASS |  |
-| 37 | Invalid topic redirects | PASS | url=http://localhost:5020/topic/nonexistent |
-| 38 | API /api/trending returns 200 | PASS |  |
-| 39 | API /api/journalists returns 200 | PASS |  |
-| 40 | API /api/sources returns 200 | PASS |  |
-| 41 | SSE /sse/feed returns 200 | PASS |  |
-| 42 | Language switch without login redirects to /login | PASS |  |
-| 43 | Mobile: tab bar visible | PASS |  |
-| 44 | Mobile: left pane hidden | PASS |  |
-| 45 | Session: history links present | PASS | 8 sessions |
+| 27 | Treemap in chat: share widget | PASS |  |
+| 28 | Journalist chart page returns 200 | PASS |  |
+| 29 | Journalist map: Plotly rendered | PASS |  |
+| 30 | Journalist map in chat: iframe present | PASS |  |
+| 31 | Journalist map in chat: journalist list below | PASS |  |
+| 32 | Journalist map in chat: share widget | PASS |  |
+| 33 | Left pane: Journalist Map link | PASS |  |
+| 34 | Chat: user message shown | PASS |  |
+| 35 | Chat: assistant response present | PASS | 3 responses |
+| 36 | Chat: share widget present | PASS |  |
+| 37 | Topic /politics returns 200 | PASS |  |
+| 38 | Topic /technology returns 200 | PASS |  |
+| 39 | Invalid topic redirects | PASS | url=http://localhost:5020/topic/nonexistent |
+| 40 | API /api/trending returns 200 | PASS |  |
+| 41 | API /api/journalists returns 200 | PASS |  |
+| 42 | API /api/sources returns 200 | PASS |  |
+| 43 | SSE /sse/feed returns 200 | PASS |  |
+| 44 | Language switch without login redirects to /login | PASS |  |
+| 45 | Mobile: tab bar visible | PASS |  |
+| 46 | Mobile: left pane hidden | PASS |  |
+| 47 | Session: history links present | PASS | 8 sessions |
 
 ## Test Categories
 
 - **Page Load**: 15/15 passed
 - **Authentication**: 5/5 passed
 - **Static Pages**: 5/5 passed
-- **Treemap**: 5/5 passed
-- **Journalist Map**: 7/7 passed
-- **Chat**: 9/9 passed
+- **Treemap**: 6/6 passed
+- **Journalist Map**: 8/8 passed
+- **Chat**: 11/11 passed
 - **Navigation**: 4/4 passed
 - **API**: 3/3 passed
 - **SSE**: 1/1 passed

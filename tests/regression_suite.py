@@ -118,6 +118,8 @@ async def run():
         log("Treemap in chat: iframe present", has_iframe)
         headlines = await page.evaluate('() => document.body.innerText.includes("Top Stories")')
         log("Treemap in chat: headlines below", headlines)
+        treemap_share = await page.evaluate('() => document.body.innerText.includes("Share this chat") || document.body.innerText.includes("Copy link")')
+        log("Treemap in chat: share widget", treemap_share)
         await page.screenshot(path=str(SCREENSHOTS / "06-treemap-in-chat.png"))
 
         # ===== 6b. Journalist map standalone =====
@@ -147,6 +149,8 @@ async def run():
         log("Journalist map in chat: iframe present", has_j_iframe)
         j_list = await page.evaluate('() => document.body.innerText.includes("Top Journalists")')
         log("Journalist map in chat: journalist list below", j_list)
+        j_share = await page.evaluate('() => document.body.innerText.includes("Share this chat") || document.body.innerText.includes("Copy link")')
+        log("Journalist map in chat: share widget", j_share)
         await page.screenshot(path=str(SCREENSHOTS / "06c-journalist-in-chat.png"))
 
         # ===== 6d. Journalist Map link in sidebar =====

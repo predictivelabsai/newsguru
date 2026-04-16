@@ -311,11 +311,8 @@ async def _chat_stream(session_id: str, messages: list[dict], topic_slug: str = 
             INSERT INTO chat_messages (session_id, role, content)
             VALUES (:sid, 'assistant', :content)
         """, {"sid": session_id, "content": full_response})
-    # Share widget + re-enable input
-    yield sse_message(
-        Div(_share_widget(session_id), hx_swap_oob="beforeend:#chat-messages"),
-        event="token",
-    )
+    # Share widget inside the chat stream + re-enable input
+    yield sse_message(_share_widget(session_id), event="token")
     yield sse_message(
         Script("document.getElementById('chat-input').disabled=false; document.getElementById('chat-input').focus();"),
         event="token",
@@ -345,10 +342,7 @@ async def _treemap_stream(session_id: str):
         INSERT INTO chat_messages (session_id, role, content)
         VALUES (:sid, 'assistant', :content)
     """, {"sid": session_id, "content": full_html})
-    yield sse_message(
-        Div(_share_widget(session_id), hx_swap_oob="beforeend:#chat-messages"),
-        event="token",
-    )
+    yield sse_message(_share_widget(session_id), event="token")
     yield sse_message(
         Script("document.getElementById('chat-input').disabled=false; document.getElementById('chat-input').focus();"),
         event="token",
@@ -376,10 +370,7 @@ async def _journalist_map_stream(session_id: str):
         INSERT INTO chat_messages (session_id, role, content)
         VALUES (:sid, 'assistant', :content)
     """, {"sid": session_id, "content": full_html})
-    yield sse_message(
-        Div(_share_widget(session_id), hx_swap_oob="beforeend:#chat-messages"),
-        event="token",
-    )
+    yield sse_message(_share_widget(session_id), event="token")
     yield sse_message(
         Script("document.getElementById('chat-input').disabled=false; document.getElementById('chat-input').focus();"),
         event="token",
