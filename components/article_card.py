@@ -71,9 +71,9 @@ def ArticleCard(article: dict, lang: str = "en"):
             Small(f"by {author}", cls="feed-meta") if author else None,
             Small(pub_date, cls="feed-meta") if pub_date else None,
             Small(
-                f"{sentiment}{sentiment_display}",
+                f"{score:+.2f}" if score is not None else "",
                 cls=sentiment_cls,
-            ) if sentiment else None,
+            ) if score is not None else None,
             cls="gap-2 mt-1 flex-wrap",
         ),
         cls="feed-item",

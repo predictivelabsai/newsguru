@@ -18,20 +18,34 @@ config = load_config()
 sse_script = Script(src="https://unpkg.com/htmx-ext-sse@2.2.3/sse.js")
 plotly_script = Script(src="https://cdn.plot.ly/plotly-2.35.0.min.js")
 plotly_renderer = Script("""
-    // Auto-render Plotly charts from base64-encoded JSON
-    function renderPendingPlotly() {
-        document.querySelectorAll('.plotly-b64').forEach(function(el) {
-            el.classList.remove('plotly-b64');
+    function renderTreemaps() {
+        document.querySelectorAll('.treemap-pending').forEach(function(el) {
+            el.classList.remove('treemap-pending');
             try {
-                var b64 = el.getAttribute('data-plotly-b64');
-                var json = atob(b64);
-                var d = JSON.parse(json);
-                Plotly.newPlot(el.id, d.data, d.layout, {responsive: true, displayModeBar: false});
-            } catch(e) { console.error('Plotly render error:', e); el.innerHTML='<p style=\"color:red;font-size:0.8rem;\">Chart rendering failed.</p>'; }
+                var d = JSON.parse(atob(el.getAttribute('data-treemap')));
+                Plotly.newPlot(el.id, [{
+                    type: 'treemap',
+                    labels: d.labels,
+                    parents: d.labels.map(function(){return '';}),
+                    values: d.values,
+                    text: d.hover,
+                    textinfo: 'label+value',
+                    textfont: {size: 14},
+                    hovertemplate: '<b>%{label}</b><br>%{text}<extra></extra>',
+                    marker: {
+                        colors: d.colors,
+                        colorscale: [[0,'#e5e7eb'],[0.3,'#93c5fd'],[0.5,'#fbbf24'],[0.7,'#f97316'],[1,'#dc2626']],
+                        cmin: 0, cmax: 10,
+                        colorbar: {title:'Score', thickness:12, len:0.8, tickvals:[0,3,5,7,10]},
+                        line: {width:2, color:'white'}
+                    }
+                }], {margin:{t:5,l:5,r:5,b:5}, height:320, font:{family:'system-ui'}},
+                {responsive:true, displayModeBar:false});
+            } catch(e) { el.innerHTML='<p style="color:#ef4444;font-size:0.8rem;">Chart error: '+e.message+'</p>'; }
         });
     }
-    document.addEventListener('htmx:afterSettle', renderPendingPlotly);
-    new MutationObserver(renderPendingPlotly).observe(document.body, {childList: true, subtree: true});
+    // Poll for pending charts every 500ms (SSE innerHTML doesn't trigger MutationObserver reliably)
+    setInterval(renderTreemaps, 500);
 """)
 pwa_headers = (
     Meta(name="apple-mobile-web-app-capable", content="yes"),
@@ -258,16 +272,18 @@ async def _feed_generator(topic_slug: str = None, lang: str = "en"):
             yield ": keepalive\n\n"
 
 
-_TREEMAP_TRIGGERS = {"show me the significance heatmap", "näita mulle olulisuse kaarti",
-                      "significance heatmap", "significance map", "treemap", "heatmap",
-                      "olulisuse kaart", "olulisuse kaardi"}
+_TREEMAP_KEYWORDS = ["significance heatmap", "significance map", "treemap", "heatmap",
+                      "olulisuse kaart", "näita mulle olulisuse"]
 
 
 def _is_treemap_request(messages: list[dict]) -> bool:
     if not messages:
         return False
     last = messages[-1]
-    return last.get("role") == "user" and last.get("content", "").strip().lower() in _TREEMAP_TRIGGERS
+    if last.get("role") != "user":
+        return False
+    text = last.get("content", "").strip().lower()
+    return any(kw in text for kw in _TREEMAP_KEYWORDS)
 
 
 async def _chat_stream(session_id: str, messages: list[dict], topic_slug: str = None):
@@ -321,42 +337,17 @@ async def _chat_stream(session_id: str, messages: list[dict], topic_slug: str = 
 
 
 async def _treemap_stream(session_id: str):
-    """Generate treemap and stream it into the chat with progress."""
-    from services.treemap_service import build_significance_treemap
-
-    # Show progress bar
-    yield sse_message(
-        Script("""
-            document.getElementById('thinking-text').textContent='Generating significance map...';
-            var ti = document.getElementById('thinking-indicator');
-            if (ti) {
-                var bar = document.createElement('div');
-                bar.style.cssText = 'width:200px;height:4px;background:#e5e7eb;border-radius:2px;margin-top:4px;overflow:hidden;';
-                var fill = document.createElement('div');
-                fill.id = 'treemap-progress';
-                fill.style.cssText = 'width:10%;height:100%;background:#3b82f6;border-radius:2px;transition:width 0.5s;';
-                bar.appendChild(fill);
-                ti.appendChild(bar);
-            }
-        """),
-        event="token",
-    )
-    await asyncio.sleep(0.3)
+    """Generate treemap with progress indicator — fast, client-side rendering."""
+    from services.treemap_service import build_treemap_html
 
     yield sse_message(
-        Script("var p=document.getElementById('treemap-progress'); if(p) p.style.width='40%';"),
+        Script("document.getElementById('thinking-text').textContent='Loading significance data...';"),
         event="token",
     )
 
-    treemap_html = await asyncio.to_thread(build_significance_treemap)
+    treemap_html = await asyncio.to_thread(build_treemap_html)
 
-    yield sse_message(
-        Script("var p=document.getElementById('treemap-progress'); if(p) p.style.width='90%';"),
-        event="token",
-    )
-    await asyncio.sleep(0.2)
-
-    full_html = f'<p style="font-size:0.8rem;color:#6b7280;margin-bottom:8px;">Significance map (last 24h). Size = article count, color = significance score.</p>{treemap_html}'
+    full_html = f'<p style="font-size:0.8rem;color:#6b7280;margin-bottom:6px;">Significance map (last 24h). Size = article count, color = significance score.</p>{treemap_html}'
     yield sse_message(
         Div(
             Script("var el=document.getElementById('thinking-indicator'); if(el) el.remove();"),
