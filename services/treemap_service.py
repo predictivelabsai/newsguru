@@ -64,5 +64,6 @@ def build_significance_treemap() -> str:
         font=dict(family="system-ui, sans-serif"),
     )
 
-    escaped = html_mod.escape(fig.to_json(), quote=True)
-    return f'<div id="treemap-chart" class="plotly-pending" data-plotly="{escaped}" style="width:100%;height:350px;border-radius:8px;"></div>'
+    import base64
+    b64 = base64.b64encode(fig.to_json().encode()).decode()
+    return f'<div id="treemap-chart" class="plotly-b64" data-plotly-b64="{b64}" style="width:100%;height:350px;border-radius:8px;background:#f9fafb;"></div>'

@@ -18,19 +18,19 @@ config = load_config()
 sse_script = Script(src="https://unpkg.com/htmx-ext-sse@2.2.3/sse.js")
 plotly_script = Script(src="https://cdn.plot.ly/plotly-2.35.0.min.js")
 plotly_renderer = Script("""
-    // Auto-render any Plotly charts injected via HTMX/SSE
+    // Auto-render Plotly charts from base64-encoded JSON
     function renderPendingPlotly() {
-        document.querySelectorAll('.plotly-pending').forEach(function(el) {
-            el.classList.remove('plotly-pending');
+        document.querySelectorAll('.plotly-b64').forEach(function(el) {
+            el.classList.remove('plotly-b64');
             try {
-                var d = JSON.parse(el.getAttribute('data-plotly'));
+                var b64 = el.getAttribute('data-plotly-b64');
+                var json = atob(b64);
+                var d = JSON.parse(json);
                 Plotly.newPlot(el.id, d.data, d.layout, {responsive: true, displayModeBar: false});
-            } catch(e) { console.error('Plotly render error:', e); }
+            } catch(e) { console.error('Plotly render error:', e); el.innerHTML='<p style=\"color:red;font-size:0.8rem;\">Chart rendering failed.</p>'; }
         });
     }
-    // Run on HTMX settle (covers SSE swaps)
     document.addEventListener('htmx:afterSettle', renderPendingPlotly);
-    // Also run on DOM mutation as fallback for SSE innerHTML
     new MutationObserver(renderPendingPlotly).observe(document.body, {childList: true, subtree: true});
 """)
 pwa_headers = (
@@ -321,14 +321,40 @@ async def _chat_stream(session_id: str, messages: list[dict], topic_slug: str = 
 
 
 async def _treemap_stream(session_id: str):
-    """Generate treemap and stream it into the chat."""
+    """Generate treemap and stream it into the chat with progress."""
     from services.treemap_service import build_significance_treemap
 
+    # Show progress bar
     yield sse_message(
-        Script("document.getElementById('thinking-text').textContent='Generating significance map...';"),
+        Script("""
+            document.getElementById('thinking-text').textContent='Generating significance map...';
+            var ti = document.getElementById('thinking-indicator');
+            if (ti) {
+                var bar = document.createElement('div');
+                bar.style.cssText = 'width:200px;height:4px;background:#e5e7eb;border-radius:2px;margin-top:4px;overflow:hidden;';
+                var fill = document.createElement('div');
+                fill.id = 'treemap-progress';
+                fill.style.cssText = 'width:10%;height:100%;background:#3b82f6;border-radius:2px;transition:width 0.5s;';
+                bar.appendChild(fill);
+                ti.appendChild(bar);
+            }
+        """),
         event="token",
     )
+    await asyncio.sleep(0.3)
+
+    yield sse_message(
+        Script("var p=document.getElementById('treemap-progress'); if(p) p.style.width='40%';"),
+        event="token",
+    )
+
     treemap_html = await asyncio.to_thread(build_significance_treemap)
+
+    yield sse_message(
+        Script("var p=document.getElementById('treemap-progress'); if(p) p.style.width='90%';"),
+        event="token",
+    )
+    await asyncio.sleep(0.2)
 
     full_html = f'<p style="font-size:0.8rem;color:#6b7280;margin-bottom:8px;">Significance map (last 24h). Size = article count, color = significance score.</p>{treemap_html}'
     yield sse_message(
