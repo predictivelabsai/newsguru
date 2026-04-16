@@ -16,49 +16,7 @@ from db.pool import get_db, fetch_all, fetch_one, execute_sql
 config = load_config()
 
 sse_script = Script(src="https://unpkg.com/htmx-ext-sse@2.2.3/sse.js")
-# Plotly loaded lazily on first treemap request (not on every page load)
-plotly_renderer = Script("""
-    var _plotlyLoaded = false;
-    function _loadPlotly(cb) {
-        if (_plotlyLoaded || typeof Plotly !== 'undefined') { _plotlyLoaded=true; cb(); return; }
-        var s = document.createElement('script');
-        s.src = 'https://cdn.plot.ly/plotly-basic-2.35.0.min.js';
-        s.onload = function() { _plotlyLoaded=true; cb(); };
-        document.head.appendChild(s);
-    }
-    function renderTreemaps() {
-        var els = document.querySelectorAll('.treemap-pending');
-        if (!els.length) return;
-        _loadPlotly(function() {
-            els.forEach(function(el) {
-                el.classList.remove('treemap-pending');
-                el.innerHTML = '<p style="color:#6b7280;font-size:0.8rem;text-align:center;padding-top:140px;">Rendering chart...</p>';
-                try {
-                    var d = JSON.parse(atob(el.getAttribute('data-treemap')));
-                    el.innerHTML = '';
-                    Plotly.newPlot(el.id, [{
-                        type: 'treemap', labels: d.labels,
-                        parents: d.parents,
-                        values: d.values, text: d.hover,
-                        branchvalues: 'total',
-                        textinfo: 'label+value', textfont: {size: 12},
-                        pathbar: {visible: true},
-                        hovertemplate: '<b>%{label}</b><br>%{text}<extra></extra>',
-                        marker: {
-                            colors: d.colors,
-                            colorscale: [[0,'#e5e7eb'],[0.3,'#93c5fd'],[0.5,'#fbbf24'],[0.7,'#f97316'],[1,'#dc2626']],
-                            cmin:0, cmax:10,
-                            colorbar: {title:'Score', thickness:12, len:0.8, tickvals:[0,3,5,7,10]},
-                            line: {width:2, color:'white'}
-                        }
-                    }], {margin:{t:5,l:5,r:5,b:5}, height:320, font:{family:'system-ui'}},
-                    {responsive:true, displayModeBar:false});
-                } catch(e) { el.innerHTML='<p style="color:#ef4444;font-size:0.8rem;">Chart error: '+e.message+'</p>'; }
-            });
-        });
-    }
-    setInterval(renderTreemaps, 500);
-""")
+    # Treemap served as iframe from /treemap-chart — no client-side JS rendering needed
 pwa_headers = (
     Meta(name="apple-mobile-web-app-capable", content="yes"),
     Meta(name="apple-mobile-web-app-status-bar-style", content="black-translucent"),
@@ -70,7 +28,6 @@ app, rt = fast_app(
     hdrs=(
         Theme.blue.headers(highlightjs=True),
         sse_script,
-        plotly_renderer,
         *pwa_headers,
         Style("""
             /* Layout */
@@ -349,17 +306,17 @@ async def _chat_stream(session_id: str, messages: list[dict], topic_slug: str = 
 
 
 async def _treemap_stream(session_id: str):
-    """Generate treemap with progress indicator — fast, client-side rendering."""
-    from services.treemap_service import build_treemap_html
+    """Generate treemap: iframe + top headlines."""
+    from services.treemap_service import build_treemap_chat_html
 
     yield sse_message(
         Script("document.getElementById('thinking-text').textContent='Loading significance data...';"),
         event="token",
     )
 
-    treemap_html = await asyncio.to_thread(build_treemap_html)
+    chat_html = await asyncio.to_thread(build_treemap_chat_html)
 
-    full_html = f'<p style="font-size:0.8rem;color:#6b7280;margin-bottom:6px;">Significance map (last 24h). Size = article count, color = significance score.</p>{treemap_html}'
+    full_html = f'<p style="font-size:0.8rem;color:#6b7280;margin-bottom:6px;">Significance map (last 24h). Size = article count, color = significance score.</p>{chat_html}'
     yield sse_message(
         Div(
             Script("var el=document.getElementById('thinking-indicator'); if(el) el.remove();"),
@@ -382,6 +339,15 @@ async def _treemap_stream(session_id: str):
 
 
 # ===================== API ENDPOINTS =====================
+
+@rt("/treemap-chart")
+async def treemap_chart_page():
+    """Serve the treemap as a self-contained HTML page (loaded via iframe)."""
+    from starlette.responses import HTMLResponse
+    from services.treemap_service import build_treemap_page
+    html = await asyncio.to_thread(build_treemap_page)
+    return HTMLResponse(html)
+
 
 @rt("/api/trending")
 def api_trending():
