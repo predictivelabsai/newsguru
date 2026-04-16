@@ -120,6 +120,41 @@ async def run():
         log("Treemap in chat: headlines below", headlines)
         await page.screenshot(path=str(SCREENSHOTS / "06-treemap-in-chat.png"))
 
+        # ===== 6b. Journalist map standalone =====
+        print("\n--- Journalist Map ---")
+        try:
+            resp = await page.goto(f"{BASE}/journalist-chart", timeout=15000)
+            log("Journalist chart page returns 200", resp.status == 200)
+            await asyncio.sleep(4)
+            has_j_plotly = await page.evaluate('() => !!document.querySelector(".js-plotly-plot")')
+            log("Journalist map: Plotly rendered", has_j_plotly)
+        except Exception as e:
+            log("Journalist chart page returns 200", False, str(e)[:60])
+            log("Journalist map: Plotly rendered", False, "page timeout")
+        await page.screenshot(path=str(SCREENSHOTS / "06b-journalist-standalone.png"))
+
+        # ===== 6c. Journalist map in chat =====
+        await page.goto(BASE)
+        await asyncio.sleep(2)
+        await page.evaluate("""() => {
+            var inp = document.getElementById('chat-input');
+            inp.value = 'journalist map';
+            inp.disabled = false;
+            inp.form.requestSubmit();
+        }""")
+        await asyncio.sleep(6)
+        has_j_iframe = await page.evaluate('() => !!document.querySelector("iframe[src=\\"/journalist-chart\\"]")')
+        log("Journalist map in chat: iframe present", has_j_iframe)
+        j_list = await page.evaluate('() => document.body.innerText.includes("Top Journalists")')
+        log("Journalist map in chat: journalist list below", j_list)
+        await page.screenshot(path=str(SCREENSHOTS / "06c-journalist-in-chat.png"))
+
+        # ===== 6d. Journalist Map link in sidebar =====
+        await page.goto(BASE)
+        await asyncio.sleep(1)
+        has_j_link = await page.evaluate('() => document.body.innerText.includes("Journalist Map")')
+        log("Left pane: Journalist Map link", has_j_link)
+
         # ===== 7. Chat interaction =====
         print("\n--- Chat Tests ---")
         await page.goto(BASE)
@@ -228,6 +263,7 @@ def _write_report():
         "Authentication": ["Login", "Register"],
         "Static Pages": ["Methodology"],
         "Treemap": ["Treemap"],
+        "Journalist Map": ["Journalist"],
         "Chat": ["Chat", "share"],
         "Navigation": ["Topic", "Invalid"],
         "API": ["API"],

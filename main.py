@@ -121,10 +121,10 @@ from utils.i18n import t, get_lang, detect_language, LANGUAGES
 
 @rt
 def index(req, sess):
-    """Default view: chat-first layout."""
+    """Default view: always start a fresh chat session."""
     lang = get_lang(sess, req)
     user = _get_session_user(sess)
-    chat_sess = _get_or_create_session("general")
+    chat_sess = _create_new_session("general")
     return _app_shell(chat_sess, lang=lang, user=user)
 
 
@@ -255,10 +255,27 @@ def _is_treemap_request(messages: list[dict]) -> bool:
     return any(kw in text for kw in _TREEMAP_KEYWORDS)
 
 
+_JOURNALIST_KEYWORDS = ["journalist map", "journalist treemap", "journalist chart", "ajakirjanike kaart"]
+
+
+def _is_journalist_map_request(messages: list[dict]) -> bool:
+    if not messages:
+        return False
+    last = messages[-1]
+    if last.get("role") != "user":
+        return False
+    text = last.get("content", "").strip().lower()
+    return any(kw in text for kw in _JOURNALIST_KEYWORDS)
+
+
 async def _chat_stream(session_id: str, messages: list[dict], topic_slug: str = None):
-    # Check if this is a treemap request
+    # Check special map requests
     if _is_treemap_request(messages):
         async for msg in _treemap_stream(session_id):
+            yield msg
+        return
+    if _is_journalist_map_request(messages):
+        async for msg in _journalist_map_stream(session_id):
             yield msg
         return
 
@@ -338,15 +355,50 @@ async def _treemap_stream(session_id: str):
     )
 
 
+async def _journalist_map_stream(session_id: str):
+    """Generate journalist treemap: iframe + top journalists."""
+    from services.treemap_service import build_journalist_chat_html
+
+    yield sse_message(
+        Script("document.getElementById('thinking-text').textContent='Loading journalist data...';"),
+        event="token",
+    )
+    chat_html = await asyncio.to_thread(build_journalist_chat_html)
+    full_html = f'<p style="font-size:0.8rem;color:#6b7280;margin-bottom:6px;">Journalist map (last 24h). Publication -> Topic -> Journalist. Color = avg significance.</p>{chat_html}'
+    yield sse_message(
+        Div(
+            Script("var el=document.getElementById('thinking-indicator'); if(el) el.remove();"),
+            Div(NotStr(full_html), cls="chat-assistant"),
+        ),
+        event="token",
+    )
+    execute_sql("""
+        INSERT INTO chat_messages (session_id, role, content)
+        VALUES (:sid, 'assistant', :content)
+    """, {"sid": session_id, "content": full_html})
+    yield sse_message(
+        Div(_share_widget(session_id), hx_swap_oob="beforeend:#chat-messages"),
+        event="token",
+    )
+    yield sse_message(
+        Script("document.getElementById('chat-input').disabled=false; document.getElementById('chat-input').focus();"),
+        event="token",
+    )
+
+
 # ===================== API ENDPOINTS =====================
 
 @rt("/treemap-chart")
 async def treemap_chart_page():
-    """Serve the treemap as a self-contained HTML page (loaded via iframe)."""
     from starlette.responses import HTMLResponse
     from services.treemap_service import build_treemap_page
-    html = await asyncio.to_thread(build_treemap_page)
-    return HTMLResponse(html)
+    return HTMLResponse(await asyncio.to_thread(build_treemap_page))
+
+@rt("/journalist-chart")
+async def journalist_chart_page():
+    from starlette.responses import HTMLResponse
+    from services.treemap_service import build_journalist_page
+    return HTMLResponse(await asyncio.to_thread(build_journalist_page))
 
 
 @rt("/api/trending")
@@ -566,7 +618,13 @@ def _app_shell(session: dict, active_topic: str = None, lang: str = "en", user: 
                         DivLAligned(UkIcon("grid", height=18), Span(t("heatmap", lang), cls="text-sm font-medium"), cls="gap-2"),
                         href="#",
                         cls="sidebar-topic no-underline",
-                        onclick=f"document.getElementById('chat-input').value={repr(t('heatmap_prompt', lang))}; document.getElementById('chat-input').form.requestSubmit(); return false;",
+                        onclick=f"var inp=document.getElementById('chat-input'); inp.value={repr(t('heatmap_prompt', lang))}; inp.disabled=false; inp.form.requestSubmit(); return false;",
+                    ),
+                    A(
+                        DivLAligned(UkIcon("users", height=18), Span("Journalist Map", cls="text-sm font-medium"), cls="gap-2"),
+                        href="#",
+                        cls="sidebar-topic no-underline",
+                        onclick="var inp=document.getElementById('chat-input'); inp.value='journalist map'; inp.disabled=false; inp.form.requestSubmit(); return false;",
                     ),
                     cls="sidebar-section",
                 ),
@@ -967,6 +1025,12 @@ def _get_top_journalists() -> list[dict]:
         FROM journalists j LEFT JOIN sources s ON s.id = j.source_id
         ORDER BY j.article_count DESC, j.last_seen_at DESC LIMIT 10
     """)
+
+def _create_new_session(topic_slug: str) -> dict:
+    """Always create a fresh chat session."""
+    execute_sql("INSERT INTO chat_sessions (topic_slug, title) VALUES (:slug, 'New chat')", {"slug": topic_slug})
+    return fetch_one("SELECT id, topic_slug, title, created_at FROM chat_sessions WHERE topic_slug = :slug ORDER BY created_at DESC LIMIT 1", {"slug": topic_slug})
+
 
 def _get_or_create_session(topic_slug: str) -> dict:
     sess = fetch_one("""

@@ -82,7 +82,7 @@ def build_treemap_page() -> str:
 <script src="https://cdn.plot.ly/plotly-2.35.0.min.js"></script>
 <style>
 body{{margin:0;padding:0;overflow:hidden;font-family:system-ui,sans-serif;background:#f9fafb;}}
-.what-link{{position:absolute;bottom:6px;right:60px;font-size:0.65rem;color:#9ca3af;text-decoration:none;}}
+.what-link{{position:absolute;bottom:6px;right:12px;font-size:0.65rem;color:#9ca3af;text-decoration:none;}}
 .what-link:hover{{text-decoration:underline;color:#6b7280;}}
 </style>
 </head><body>
@@ -154,4 +154,117 @@ def build_treemap_chat_html() -> str:
     return (
         f'<iframe src="/treemap-chart" style="width:100%;height:340px;border:none;border-radius:8px;" loading="lazy"></iframe>'
         f'{hl_html}'
+    )
+
+
+# ===================== JOURNALIST MAP =====================
+
+def build_journalist_page() -> str:
+    """Self-contained HTML page: Publication -> Journalist treemap."""
+
+    rows = fetch_all("""
+        SELECT COALESCE(s.name, 'Unknown') AS source, j.name AS journalist,
+               j.article_count
+        FROM journalists j
+        LEFT JOIN sources s ON s.id = j.source_id
+        WHERE j.article_count >= 2
+        ORDER BY s.name, j.article_count DESC
+        LIMIT 50
+    """)
+
+    if not rows:
+        return "<html><body><p style='padding:20px;color:#6b7280;'>No journalist data yet.</p></body></html>"
+
+    labels, parents, values, colors, hover = [], [], [], [], []
+    sources_seen = set()
+
+    for r in rows:
+        src = r["source"]
+        journalist = r["journalist"]
+        count = int(r["article_count"])
+
+        # Publication level
+        if src not in sources_seen:
+            sources_seen.add(src)
+            labels.append(src)
+            parents.append("")
+            values.append(0)
+            colors.append(3.0)
+            hover.append(f"<b>{src}</b>")
+
+        # Journalist leaf under publication
+        j_lbl = journalist[:22]
+        while j_lbl in labels:
+            j_lbl = j_lbl[:20] + " *"
+        labels.append(j_lbl)
+        parents.append(src)
+        values.append(count)
+        colors.append(min(10.0, count * 1.5))  # color by activity level
+        hover.append(f"<b>{journalist}</b><br>{src}<br>{count} articles")
+
+    data_json = json.dumps({"labels": labels, "parents": parents, "values": values, "colors": colors, "hover": hover})
+
+    return f"""<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8">
+<script src="https://cdn.plot.ly/plotly-2.35.0.min.js"></script>
+<style>body{{margin:0;padding:0;overflow:hidden;font-family:system-ui,sans-serif;background:#f9fafb;}}
+.what-link{{position:absolute;bottom:6px;right:12px;font-size:0.65rem;color:#9ca3af;text-decoration:none;}}
+.what-link:hover{{text-decoration:underline;color:#6b7280;}}</style>
+</head><body>
+<div id="chart" style="width:100%;height:100vh;"></div>
+<a href="/methodology" target="_top" class="what-link">What is this?</a>
+<script>
+var d = {data_json};
+Plotly.newPlot('chart', [{{
+    type: 'treemap', labels: d.labels, parents: d.parents,
+    values: d.values, text: d.hover,
+    textinfo: 'label+value', textfont: {{size: 12, color: '#1f2937'}},
+    hovertemplate: '%{{text}}<extra></extra>',
+    pathbar: {{visible: true, textfont: {{size: 11}}}},
+    marker: {{
+        colors: d.colors,
+        colorscale: [[0,'#dbeafe'],[0.3,'#86efac'],[0.5,'#fbbf24'],[0.7,'#f97316'],[1,'#dc2626']],
+        cmin: 0, cmax: 10,
+        colorbar: {{title:{{text:'Score',font:{{size:11}}}},thickness:14,len:0.85,tickvals:[0,3,5,7,10]}},
+        line: {{width: 1.5, color: 'white'}}
+    }}
+}}], {{margin:{{t:28,l:6,r:6,b:6}},font:{{family:'system-ui'}},paper_bgcolor:'#f9fafb'}},
+{{responsive:true,displayModeBar:false}});
+</script></body></html>"""
+
+
+def build_journalist_chat_html() -> str:
+    """Build journalist map for chat: iframe + top journalists."""
+    top_j = fetch_all("""
+        SELECT j.name, s.name AS source_name, j.article_count,
+               COALESCE(AVG(asig.significance_score), 0) AS avg_sig
+        FROM journalists j
+        LEFT JOIN sources s ON s.id = j.source_id
+        LEFT JOIN journalist_articles ja ON ja.journalist_id = j.id
+        LEFT JOIN article_significance asig ON asig.article_id = ja.article_id
+        GROUP BY j.id, j.name, s.name, j.article_count
+        HAVING j.article_count >= 2
+        ORDER BY j.article_count DESC
+        LIMIT 10
+    """)
+
+    j_html = ""
+    if top_j:
+        items = []
+        for j in top_j:
+            sig = float(j.get("avg_sig", 0))
+            color = "#dc2626" if sig >= 7 else "#f59e0b" if sig >= 5 else "#3b82f6" if sig >= 3 else "#9ca3af"
+            items.append(
+                f'<div style="display:flex;align-items:baseline;gap:6px;margin-bottom:3px;">'
+                f'<span style="background:{color};color:white;font-size:0.6rem;padding:1px 5px;border-radius:4px;font-weight:700;min-width:28px;text-align:center;">{sig:.1f}</span>'
+                f'<span style="font-size:0.8rem;font-weight:500;">{j["name"]}</span>'
+                f'<span style="font-size:0.65rem;color:#6b7280;">{j.get("source_name", "")} ({j["article_count"]} articles)</span>'
+                f'</div>'
+            )
+        j_html = '<div style="margin-top:8px;"><p style="font-size:0.75rem;font-weight:600;color:#374151;margin-bottom:6px;">Top Journalists</p>' + "".join(items) + '</div>'
+
+    return (
+        f'<iframe src="/journalist-chart" style="width:100%;height:340px;border:none;border-radius:8px;" loading="lazy"></iframe>'
+        f'{j_html}'
     )
