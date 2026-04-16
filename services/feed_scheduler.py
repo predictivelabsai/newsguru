@@ -78,15 +78,17 @@ async def _process_article(raw: dict, article_queue: asyncio.Queue, topic_queues
     src_name = source_name_for_scoring["name"] if source_name_for_scoring else ""
     await score_significance(article_id, raw["title"], raw.get("summary", ""), src_name)
 
+    # Insert into news_feed history table
+    topic_names = [t["slug"] for t in topics]
+    _insert_news_feed(article_id, raw, source_id, topic_names)
+
     # Build article dict for SSE push
     article_for_push = _build_push_article(article_id)
     if article_for_push:
-        # Push to global queue
         try:
             article_queue.put_nowait(article_for_push)
         except asyncio.QueueFull:
             pass
-        # Push to topic-specific queues
         for t in topics:
             q = topic_queues.get(t["slug"])
             if q:
@@ -94,6 +96,36 @@ async def _process_article(raw: dict, article_queue: asyncio.Queue, topic_queues
                     q.put_nowait(article_for_push)
                 except asyncio.QueueFull:
                     pass
+
+
+def _insert_news_feed(article_id: str, raw: dict, source_id: str | None, topic_slugs: list[str]):
+    """Insert a record into the news_feed history table."""
+    try:
+        src = fetch_one("SELECT name, domain FROM sources WHERE id = :id", {"id": source_id}) if source_id else None
+        sent = fetch_one("SELECT label, score FROM article_sentiments WHERE article_id = :id", {"id": article_id})
+        sig = fetch_one("SELECT significance_score FROM article_significance WHERE article_id = :id", {"id": article_id})
+        execute_sql("""
+            INSERT INTO news_feed (article_id, title, url, source_name, source_domain, author,
+                                   language, published_at, sentiment_label, sentiment_score,
+                                   significance_score, topics)
+            VALUES (:aid, :title, :url, :src_name, :src_domain, :author,
+                    :lang, :pub, :sent_label, :sent_score, :sig_score, :topics)
+        """, {
+            "aid": article_id,
+            "title": raw["title"],
+            "url": raw["url"],
+            "src_name": src["name"] if src else None,
+            "src_domain": src["domain"] if src else raw.get("source_domain"),
+            "author": raw.get("author", ""),
+            "lang": raw.get("language", "en"),
+            "pub": raw.get("published_at"),
+            "sent_label": sent["label"] if sent else None,
+            "sent_score": sent["score"] if sent else None,
+            "sig_score": sig["significance_score"] if sig else None,
+            "topics": topic_slugs,
+        })
+    except Exception as e:
+        logger.error(f"Failed to insert news_feed: {e}")
 
 
 def _build_push_article(article_id: str) -> dict | None:

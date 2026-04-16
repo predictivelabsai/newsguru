@@ -90,10 +90,39 @@ def add_significance_table():
     print("Significance table created.")
 
 
+def add_news_feed_table():
+    """Create news_feed history table."""
+    engine = get_engine()
+    with engine.connect() as conn:
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS newsguru.news_feed (
+                id              BIGSERIAL PRIMARY KEY,
+                article_id      UUID REFERENCES newsguru.articles(id) ON DELETE SET NULL,
+                title           TEXT NOT NULL,
+                url             TEXT NOT NULL,
+                source_name     VARCHAR(255),
+                source_domain   VARCHAR(255),
+                author          VARCHAR(512),
+                language        VARCHAR(10) DEFAULT 'en',
+                published_at    TIMESTAMPTZ,
+                sentiment_label VARCHAR(20),
+                sentiment_score REAL,
+                significance_score REAL,
+                topics          TEXT[],
+                inserted_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+            CREATE INDEX IF NOT EXISTS idx_news_feed_inserted ON newsguru.news_feed(inserted_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_news_feed_significance ON newsguru.news_feed(significance_score DESC NULLS LAST);
+        """))
+        conn.commit()
+    print("News feed table created.")
+
+
 if __name__ == "__main__":
     run_schema()
     add_translation_columns()
     add_significance_table()
+    add_news_feed_table()
     seed_sources()
     seed_topics()
     print("Migration complete.")

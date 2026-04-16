@@ -154,6 +154,17 @@ def topic_view(topic_slug: str, sess):
     return _app_shell(chat_sess, active_topic=topic_slug, lang=lang, user=user)
 
 
+@rt("/session/{session_id}")
+def load_session(session_id: str, sess):
+    """Load an existing chat session."""
+    lang = get_lang(sess)
+    user = _get_session_user(sess)
+    chat_sess = fetch_one("SELECT id, topic_slug, title, created_at FROM chat_sessions WHERE id = :sid", {"sid": session_id})
+    if not chat_sess:
+        return RedirectResponse("/", status_code=303)
+    return _app_shell(chat_sess, lang=lang, user=user)
+
+
 @rt("/set-lang/{lang_code}")
 def set_language(lang_code: str, sess):
     """Switch UI language — requires login."""
@@ -287,81 +298,27 @@ async def _chat_stream(session_id: str, messages: list[dict], topic_slug: str = 
 
 
 async def _treemap_stream(session_id: str):
-    """Agentic treemap generation — streams status updates then the chart + analysis."""
-    from services.treemap_service import build_significance_treemap, build_treemap_summary
+    """Generate treemap and stream it into the chat."""
+    from services.treemap_service import build_significance_treemap
 
-    # Step 1: Analyzing
     yield sse_message(
-        Script("document.getElementById('thinking-text').textContent='Analyzing article data...';"),
-        event="token",
-    )
-    await asyncio.sleep(0.5)
-
-    # Step 2: Build summary for LLM
-    yield sse_message(
-        Script("document.getElementById('thinking-text').textContent='Scoring significance across topics...';"),
-        event="token",
-    )
-    summary = await asyncio.to_thread(build_treemap_summary)
-    await asyncio.sleep(0.3)
-
-    # Step 3: Generate treemap
-    yield sse_message(
-        Script("document.getElementById('thinking-text').textContent='Generating treemap visualization...';"),
+        Script("document.getElementById('thinking-text').textContent='Generating significance map...';"),
         event="token",
     )
     treemap_html = await asyncio.to_thread(build_significance_treemap)
-    await asyncio.sleep(0.3)
 
-    # Step 4: Get LLM analysis of the data
-    yield sse_message(
-        Script("document.getElementById('thinking-text').textContent='Composing analysis...';"),
-        event="token",
-    )
-    from services.chat_service import md_to_html
-    analysis_md = ""
-    try:
-        from langchain_openai import ChatOpenAI
-        import os
-        llm = ChatOpenAI(
-            api_key=os.environ["XAI_API_KEY"],
-            base_url="https://api.x.ai/v1",
-            model=load_config()["llm"]["model"],
-            temperature=0.3, max_tokens=800,
-        )
-        prompt = f"""You are NewsGuru. Analyze this news significance data and provide a brief insight (3-4 sentences).
-Focus on: which topics dominate, what the highest-scoring stories are about, and any patterns.
-
-{summary}
-
-Write in markdown with **bold** for emphasis."""
-        resp = await llm.ainvoke(prompt)
-        analysis_md = resp.content
-    except Exception as e:
-        analysis_md = f"*Could not generate analysis: {e}*"
-
-    analysis_html = md_to_html(analysis_md)
-
-    # Step 5: Stream the complete response
-    full_html = f"""
-    <div style="margin-bottom:12px;">{treemap_html}</div>
-    <div>{analysis_html}</div>
-    """
+    full_html = f'<p style="font-size:0.8rem;color:#6b7280;margin-bottom:8px;">Significance map (last 24h). Size = article count, color = significance score.</p>{treemap_html}'
     yield sse_message(
         Div(
             Script("var el=document.getElementById('thinking-indicator'); if(el) el.remove();"),
-            Div(NotStr(full_html), cls="chat-assistant text-sm"),
+            Div(NotStr(full_html), cls="chat-assistant"),
         ),
         event="token",
     )
-
-    # Save to DB
     execute_sql("""
         INSERT INTO chat_messages (session_id, role, content)
         VALUES (:sid, 'assistant', :content)
     """, {"sid": session_id, "content": full_html})
-
-    # Re-enable input
     yield sse_message(
         Script("document.getElementById('chat-input').disabled=false; document.getElementById('chat-input').focus();"),
         event="token",
@@ -556,10 +513,21 @@ def _app_shell(session: dict, active_topic: str = None, lang: str = "en", user: 
         Div(
             # ===== LEFT PANE =====
             Div(
+                # New Chat + Chat History
+                Div(
+                    A(
+                        DivLAligned(UkIcon("plus", height=16), Span("New Chat", cls="text-sm font-medium"), cls="gap-2"),
+                        href="/",
+                        cls="sidebar-topic no-underline",
+                        style="border: 1px dashed #d1d5db; border-left: none;",
+                    ),
+                    *_chat_history_items(session_id),
+                    cls="sidebar-section",
+                ),
+                # Topics + Treemap
                 Div(
                     Div(t("topics", lang), cls="sidebar-section-title"),
                     *[_sidebar_topic(tpc, active=(tpc["slug"] == active_topic), lang=lang) for tpc in grouped],
-                    # Treemap link
                     A(
                         DivLAligned(UkIcon("grid", height=18), Span(t("heatmap", lang), cls="text-sm font-medium"), cls="gap-2"),
                         href="#",
@@ -568,16 +536,19 @@ def _app_shell(session: dict, active_topic: str = None, lang: str = "en", user: 
                     ),
                     cls="sidebar-section",
                 ),
+                # Trending
                 Div(
                     Div(t("trending", lang), cls="sidebar-section-title"),
                     _trending_widget(_get_trending(), lang),
                     cls="sidebar-section",
                 ),
+                # Sources
                 Div(
                     Div(t("sources", lang), cls="sidebar-section-title"),
                     _sources_widget(_get_active_sources()),
                     cls="sidebar-section",
                 ),
+                # Journalists
                 Div(
                     Div(t("journalists", lang), cls="sidebar-section-title"),
                     _journalist_widget(_get_top_journalists(), lang),
@@ -631,6 +602,35 @@ def _app_shell(session: dict, active_topic: str = None, lang: str = "en", user: 
             cls="app-layout",
         ),
     )
+
+
+def _chat_history_items(active_session_id: str) -> list:
+    """Recent chat sessions for the left pane."""
+    sessions = fetch_all("""
+        SELECT id, title, created_at FROM chat_sessions
+        ORDER BY updated_at DESC LIMIT 8
+    """)
+    items = []
+    for s in sessions:
+        is_active = str(s["id"]) == active_session_id
+        ts = s["created_at"].strftime("%b %d, %H:%M") if hasattr(s["created_at"], "strftime") else ""
+        items.append(
+            A(
+                DivLAligned(
+                    UkIcon("message-circle", height=12),
+                    Div(
+                        Span(s["title"][:25] + ("..." if len(s["title"]) > 25 else ""), cls="text-xs"),
+                        Br(),
+                        Span(ts, style="font-size:0.6rem; color:#9ca3af;"),
+                    ),
+                    cls="gap-1",
+                ),
+                href=f"/session/{s['id']}",
+                cls="sidebar-topic no-underline" + (" active" if is_active else ""),
+                style="padding:5px 8px;",
+            )
+        )
+    return items
 
 
 def _starter_cards(session_id: str, lang: str = "en"):
