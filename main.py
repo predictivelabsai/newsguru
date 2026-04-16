@@ -747,6 +747,15 @@ def _methodology_html() -> str:
 <h3>Philosophy</h3>
 <p><strong>Significance is objective</strong> — it measures how much an event affects humanity as a whole. This is different from importance, which is subjective. If nothing significant happens, the feed is short by design.</p>
 
+<h3>Journalist Map</h3>
+<p>The journalist map visualizes reporter activity over the last 24 hours, structured as <strong>Publication -> Journalist</strong>.</p>
+<ul>
+<li><strong>Block size:</strong> Number of articles by that journalist.</li>
+<li><strong>Color:</strong> Activity level (more articles = warmer color).</li>
+<li><strong>Drill-down:</strong> Click any journalist name to see their recent articles with source, significance score, and sentiment.</li>
+</ul>
+<p>Journalist names are extracted from RSS feeds and article metadata. Names are cleaned to remove role suffixes (e.g., "ajakirjanik", "editor") and non-person entries (URLs, organization names) are filtered out.</p>
+
 <p style="color:#6b7280; margin-top:20px;"><em>Inspired by <a href="https://www.newsminimalist.com/about" target="_blank" style="color:#3b82f6;">News Minimalist</a>. Powered by xAI Grok.</em></p>
 """
 

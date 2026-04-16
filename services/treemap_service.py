@@ -255,14 +255,25 @@ def build_journalist_chat_html() -> str:
         for j in top_j:
             sig = float(j.get("avg_sig", 0))
             color = "#dc2626" if sig >= 7 else "#f59e0b" if sig >= 5 else "#3b82f6" if sig >= 3 else "#9ca3af"
+            name = j["name"]
+            src = j.get("source_name", "")
+            # Clickable name — sends chat query for journalist's articles
+            name_escaped = name.replace("'", "\\'")
+            onclick = f"var inp=document.getElementById('chat-input'); inp.value='Show recent articles by {name_escaped} from {src}'; inp.disabled=false; inp.form.requestSubmit(); return false;"
             items.append(
                 f'<div style="display:flex;align-items:baseline;gap:6px;margin-bottom:3px;">'
                 f'<span style="background:{color};color:white;font-size:0.6rem;padding:1px 5px;border-radius:4px;font-weight:700;min-width:28px;text-align:center;">{sig:.1f}</span>'
-                f'<span style="font-size:0.8rem;font-weight:500;">{j["name"]}</span>'
-                f'<span style="font-size:0.65rem;color:#6b7280;">{j.get("source_name", "")} ({j["article_count"]} articles)</span>'
+                f'<a href="#" onclick="{onclick}" style="font-size:0.8rem;font-weight:500;text-decoration:none;color:#1f2937;" onmouseover="this.style.textDecoration=\'underline\'" onmouseout="this.style.textDecoration=\'none\'">{name}</a>'
+                f'<span style="font-size:0.65rem;color:#6b7280;">{src} ({j["article_count"]})</span>'
                 f'</div>'
             )
-        j_html = '<div style="margin-top:8px;"><p style="font-size:0.75rem;font-weight:600;color:#374151;margin-bottom:6px;">Top Journalists</p>' + "".join(items) + '</div>'
+        j_html = (
+            '<div style="margin-top:8px;">'
+            '<p style="font-size:0.75rem;font-weight:600;color:#374151;margin-bottom:6px;">Top Journalists <span style="font-weight:400;color:#9ca3af;">(click to see articles)</span></p>'
+            + "".join(items)
+            + '<p style="font-size:0.6rem;color:#9ca3af;margin-top:6px;"><a href="/methodology" style="color:#9ca3af;">Methodology</a></p>'
+            + '</div>'
+        )
 
     return (
         f'<iframe src="/journalist-chart" style="width:100%;height:340px;border:none;border-radius:8px;" loading="lazy"></iframe>'
