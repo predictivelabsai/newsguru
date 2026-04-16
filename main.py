@@ -98,21 +98,32 @@ topic_queues: dict[str, asyncio.Queue] = {}
 
 from components.article_card import ArticleCard
 from components.chat_ui import ChatMessageBubble
+from utils.i18n import t, get_lang, detect_language, LANGUAGES
 
 # ===================== ROUTES =====================
 
 @rt
-def index():
+def index(req, sess):
     """Default view: chat-first layout."""
-    sess = _get_or_create_session("general")
-    return _app_shell(sess)
+    lang = get_lang(sess, req)
+    chat_sess = _get_or_create_session("general")
+    return _app_shell(chat_sess, lang=lang)
 
 
 @rt("/topic/{topic_slug}")
-def topic_view(topic_slug: str):
+def topic_view(topic_slug: str, sess):
     """Switch topic — returns the full app shell."""
-    sess = _get_or_create_session(topic_slug)
-    return _app_shell(sess, active_topic=topic_slug)
+    lang = get_lang(sess)
+    chat_sess = _get_or_create_session(topic_slug)
+    return _app_shell(chat_sess, active_topic=topic_slug, lang=lang)
+
+
+@rt("/set-lang/{lang_code}")
+def set_language(lang_code: str, sess):
+    """Switch UI language."""
+    if lang_code in LANGUAGES:
+        sess["lang"] = lang_code
+    return RedirectResponse("/", status_code=303)
 
 
 @rt("/chat/{session_id}/send", methods=["POST"])
@@ -149,12 +160,12 @@ async def chat_send(session_id: str, msg: str):
 # ===================== SSE ENDPOINTS =====================
 
 @rt("/sse/feed")
-async def sse_feed():
-    return EventStream(_feed_generator())
+async def sse_feed(lang: str = "en"):
+    return EventStream(_feed_generator(lang=lang))
 
 @rt("/sse/feed/{topic_slug}")
-async def sse_feed_topic(topic_slug: str):
-    return EventStream(_feed_generator(topic_slug))
+async def sse_feed_topic(topic_slug: str, lang: str = "en"):
+    return EventStream(_feed_generator(topic_slug, lang=lang))
 
 @rt("/sse/chat/{session_id}")
 async def sse_chat(session_id: str):
@@ -169,12 +180,12 @@ async def sse_chat(session_id: str):
 
 # ===================== SSE GENERATORS =====================
 
-async def _feed_generator(topic_slug: str = None):
+async def _feed_generator(topic_slug: str = None, lang: str = "en"):
     q = topic_queues.get(topic_slug, article_queue) if topic_slug else article_queue
     while not shutdown_event.is_set():
         try:
             article = await asyncio.wait_for(q.get(), timeout=20.0)
-            card = ArticleCard(article)
+            card = ArticleCard(article, lang=lang)
             yield sse_message(card, event="new-article")
         except asyncio.TimeoutError:
             yield ": keepalive\n\n"
@@ -254,36 +265,38 @@ def api_toggle_source(source_id: str):
 # ===================== AUTH ROUTES =====================
 
 @rt("/login")
-def login_page():
-    return Title("NewsGuru - Login"), _nav_bar(), Div(
+def login_page(sess):
+    lang = get_lang(sess)
+    return Title("NewsGuru - " + t("login", lang)), _nav_bar(lang), Div(
         Card(
             DivCentered(UkIcon("newspaper", height=32), H2("NewsGuru", cls="text-2xl font-bold"),
-                        P("Sign in to your account", cls=TextPresets.muted_sm), cls="mb-4"),
+                        P(t("sign_in_desc", lang), cls=TextPresets.muted_sm), cls="mb-4"),
             Form(
-                Div(Label("Email", fr="email"), Input(name="email", type="email", id="email", placeholder="you@example.com", cls="uk-input"), cls="space-y-1"),
-                Div(Label("Password", fr="password"), Input(name="password", type="password", id="password", placeholder="Password", cls="uk-input"), cls="space-y-1 mt-3"),
-                Button("Sign In", type="submit", cls=ButtonT.primary + " uk-width-1-1 mt-4"),
+                Div(Label(t("email", lang), fr="email"), Input(name="email", type="email", id="email", placeholder="you@example.com", cls="uk-input"), cls="space-y-1"),
+                Div(Label(t("password", lang), fr="password"), Input(name="password", type="password", id="password", placeholder=t("password", lang), cls="uk-input"), cls="space-y-1 mt-3"),
+                Button(t("sign_in", lang), type="submit", cls=ButtonT.primary + " uk-width-1-1 mt-4"),
                 hx_post="/auth/login", hx_target="body",
             ),
-            Div(P("Don't have an account?", cls="text-sm text-center mt-3"), A("Register", href="/register", cls="uk-button uk-button-text"), cls="text-center"),
+            Div(P(t("no_account", lang), cls="text-sm text-center mt-3"), A(t("register", lang), href="/register", cls="uk-button uk-button-text"), cls="text-center"),
             cls="max-w-sm mx-auto mt-12",
         ), cls="flex justify-center p-8",
     )
 
 @rt("/register")
-def register_page():
-    return Title("NewsGuru - Register"), _nav_bar(), Div(
+def register_page(sess):
+    lang = get_lang(sess)
+    return Title("NewsGuru - " + t("register", lang)), _nav_bar(lang), Div(
         Card(
             DivCentered(UkIcon("newspaper", height=32), H2("NewsGuru", cls="text-2xl font-bold"),
-                        P("Create a new account", cls=TextPresets.muted_sm), cls="mb-4"),
+                        P(t("create_account_desc", lang), cls=TextPresets.muted_sm), cls="mb-4"),
             Form(
-                Div(Label("Display Name", fr="dn"), Input(name="display_name", id="dn", placeholder="Your name", cls="uk-input"), cls="space-y-1"),
-                Div(Label("Email", fr="email"), Input(name="email", type="email", id="email", placeholder="you@example.com", cls="uk-input"), cls="space-y-1 mt-3"),
-                Div(Label("Password", fr="password"), Input(name="password", type="password", id="password", placeholder="Password", cls="uk-input"), cls="space-y-1 mt-3"),
-                Button("Create Account", type="submit", cls=ButtonT.primary + " uk-width-1-1 mt-4"),
+                Div(Label(t("display_name", lang), fr="dn"), Input(name="display_name", id="dn", placeholder=t("display_name", lang), cls="uk-input"), cls="space-y-1"),
+                Div(Label(t("email", lang), fr="email"), Input(name="email", type="email", id="email", placeholder="you@example.com", cls="uk-input"), cls="space-y-1 mt-3"),
+                Div(Label(t("password", lang), fr="password"), Input(name="password", type="password", id="password", placeholder=t("password", lang), cls="uk-input"), cls="space-y-1 mt-3"),
+                Button(t("create_account", lang), type="submit", cls=ButtonT.primary + " uk-width-1-1 mt-4"),
                 hx_post="/auth/register", hx_target="body",
             ),
-            Div(P("Already have an account?", cls="text-sm text-center mt-3"), A("Sign In", href="/login", cls="uk-button uk-button-text"), cls="text-center"),
+            Div(P(t("have_account", lang), cls="text-sm text-center mt-3"), A(t("sign_in", lang), href="/login", cls="uk-button uk-button-text"), cls="text-center"),
             cls="max-w-sm mx-auto mt-12",
         ), cls="flex justify-center p-8",
     )
@@ -312,30 +325,40 @@ def auth_logout(sess):
 
 # ===================== LAYOUT BUILDERS =====================
 
-def _nav_bar():
+def _nav_bar(lang: str = "en"):
+    # Language switcher flags
+    lang_flags = DivLAligned(
+        *[A(
+            Span(info["flag"], cls="text-base" + (" opacity-40" if code != lang else "")),
+            href=f"/set-lang/{code}",
+            cls="no-underline",
+            title=info["native"],
+        ) for code, info in LANGUAGES.items()],
+        cls="gap-1",
+    )
     return Div(
         A(DivLAligned(UkIcon("newspaper", height=22), Span("NewsGuru", cls="text-lg font-bold"), cls="gap-2"), href="/", cls="no-underline"),
         DivLAligned(
-            A("Login", href="/login", cls="uk-button uk-button-default uk-button-small"),
-            A("Register", href="/register", cls="uk-button uk-button-primary uk-button-small"),
-            cls="gap-2",
+            lang_flags,
+            A(t("login", lang), href="/login", cls="uk-button uk-button-default uk-button-small"),
+            A(t("register", lang), href="/register", cls="uk-button uk-button-primary uk-button-small"),
+            cls="gap-3",
         ),
         cls="app-nav",
     )
 
 
-def _app_shell(session: dict, active_topic: str = None):
+def _app_shell(session: dict, active_topic: str = None, lang: str = "en"):
     """Main 3-pane app shell. Chat-first, no login required."""
     session_id = str(session["id"])
-    topic_slug = session.get("topic_slug", "general")
     topics = _get_topics_with_counts()
-    grouped = _group_topics(topics)
+    grouped = _group_topics(topics, lang)
 
     # Load existing messages
     messages = fetch_all("SELECT role, content FROM chat_messages WHERE session_id = :sid ORDER BY created_at ASC", {"sid": session_id})
 
-    # Recent articles for right pane feed
-    recent_articles = _get_recent_articles(20)
+    # Recent articles — prioritize user's language
+    recent_articles = _get_recent_articles(20, lang)
 
     # Build chat bubbles — always show welcome if no messages
     msg_bubbles = [ChatMessageBubble(m["role"], m["content"]) for m in messages]
@@ -343,9 +366,9 @@ def _app_shell(session: dict, active_topic: str = None):
         msg_bubbles.append(
             Div(
                 Div(
-                    P("Welcome to NewsGuru!", cls="font-semibold text-sm"),
-                    P("I'm your AI news assistant. Ask me about the latest headlines, search for specific topics, or get analysis on trending stories. I can search the web using Tavily and Exa, and pull from our article database.", cls="text-sm text-muted mt-1"),
-                    P("Try: \"What's happening in Ukraine?\", \"Latest tech news\", or \"Summarize today's business headlines\"", cls="text-xs text-muted mt-2 italic"),
+                    P(t("welcome_title", lang), cls="font-semibold text-sm"),
+                    P(t("welcome_body", lang), cls="text-sm text-muted mt-1"),
+                    P(t("welcome_examples", lang), cls="text-xs text-muted mt-2 italic"),
                     cls="p-3",
                 ),
                 cls="chat-assistant",
@@ -354,36 +377,31 @@ def _app_shell(session: dict, active_topic: str = None):
 
     return (
         Title("NewsGuru"),
-        _nav_bar(),
+        _nav_bar(lang),
         Div(
             # ===== LEFT PANE =====
             Div(
-                # Topic cards
                 Div(
-                    Div("Topics", cls="sidebar-section-title"),
-                    *[_sidebar_topic(t, active=(t["slug"] == active_topic)) for t in grouped],
+                    Div(t("topics", lang), cls="sidebar-section-title"),
+                    *[_sidebar_topic(tpc, active=(tpc["slug"] == active_topic), lang=lang) for tpc in grouped],
                     cls="sidebar-section",
                 ),
-                # Trending
                 Div(
-                    Div("Trending", cls="sidebar-section-title"),
-                    _trending_widget(_get_trending()),
+                    Div(t("trending", lang), cls="sidebar-section-title"),
+                    _trending_widget(_get_trending(), lang),
                     cls="sidebar-section",
                 ),
-                # Sources (news outlets)
                 Div(
-                    Div("Sources", cls="sidebar-section-title"),
+                    Div(t("sources", lang), cls="sidebar-section-title"),
                     _sources_widget(_get_active_sources()),
                     cls="sidebar-section",
                 ),
-                # Journalists
                 Div(
-                    Div("Journalists", cls="sidebar-section-title"),
-                    _journalist_widget(_get_top_journalists()),
+                    Div(t("journalists", lang), cls="sidebar-section-title"),
+                    _journalist_widget(_get_top_journalists(), lang),
                     cls="sidebar-section",
                 ),
-                # Config
-                _config_panel(),
+                _config_panel(lang),
                 cls="left-pane",
             ),
 
@@ -393,7 +411,7 @@ def _app_shell(session: dict, active_topic: str = None):
                 Div(
                     Form(
                         DivFullySpaced(
-                            Input(name="msg", id="chat-input", placeholder="Ask about the news...", autofocus=True, cls="uk-input uk-width-expand"),
+                            Input(name="msg", id="chat-input", placeholder=t("ask_placeholder", lang), autofocus=True, cls="uk-input uk-width-expand"),
                             Button(UkIcon("send", height=16), type="submit", cls=ButtonT.primary),
                             cls="gap-2",
                         ),
@@ -410,16 +428,16 @@ def _app_shell(session: dict, active_topic: str = None):
 
             # ===== RIGHT PANE (always visible — live feed) =====
             Div(
-                H4(DivLAligned(UkIcon("rss", height=16), Span("Live Feed", cls="text-sm font-semibold"), cls="gap-2"), cls="mb-2"),
+                H4(DivLAligned(UkIcon("rss", height=16), Span(t("live_feed", lang), cls="text-sm font-semibold"), cls="gap-2"), cls="mb-2"),
                 Div(
                     Div(
                         id="live-feed-items",
                         hx_ext="sse",
-                        sse_connect="/sse/feed",
+                        sse_connect=f"/sse/feed?lang={lang}",
                         sse_swap="new-article",
                         hx_swap="afterbegin",
                     ),
-                    *[ArticleCard(a) for a in recent_articles],
+                    *[ArticleCard(a, lang=lang) for a in recent_articles],
                     id="feed-scroll",
                     style="overflow-y: auto; max-height: calc(100vh - 120px);",
                 ),
@@ -432,13 +450,14 @@ def _app_shell(session: dict, active_topic: str = None):
     )
 
 
-def _sidebar_topic(topic: dict, active: bool = False):
+def _sidebar_topic(topic: dict, active: bool = False, lang: str = "en"):
     count = topic.get("article_count", 0)
+    name = topic.get("name_i18n", topic["name"])
     return A(
         DivLAligned(
             UkIcon(topic["icon"], height=18),
             Div(
-                Span(topic["name"], cls="text-sm font-medium"),
+                Span(name, cls="text-sm font-medium"),
                 Span(f" ({count})", cls="text-xs text-muted"),
             ),
             cls="gap-2",
@@ -449,19 +468,19 @@ def _sidebar_topic(topic: dict, active: bool = False):
     )
 
 
-def _trending_widget(topics: list[dict]):
+def _trending_widget(topics: list[dict], lang: str = "en"):
     if not topics:
-        return P("No trending topics yet.", cls="text-xs text-muted px-2")
+        return P(t("no_trending", lang), cls="text-xs text-muted px-2")
     items = []
-    for t in topics:
+    for tp in topics:
         items.append(
             DivFullySpaced(
                 DivLAligned(
-                    Span("", style=f"width:8px;height:8px;border-radius:50%;background:{t['color']};display:inline-block;"),
-                    A(t["name"], href=f"/topic/{t['slug']}", cls="text-xs no-underline"),
+                    Span("", style=f"width:8px;height:8px;border-radius:50%;background:{tp['color']};display:inline-block;"),
+                    A(tp["name"], href=f"/topic/{tp['slug']}", cls="text-xs no-underline"),
                     cls="gap-1",
                 ),
-                Span(f"{t['cnt']}", cls="text-xs text-muted"),
+                Span(f"{tp['cnt']}", cls="text-xs text-muted"),
                 cls="px-2 py-0.5",
             )
         )
@@ -488,9 +507,9 @@ def _sources_widget(sources: list[dict]):
     return Div(*items)
 
 
-def _journalist_widget(journalists: list[dict]):
+def _journalist_widget(journalists: list[dict], lang: str = "en"):
     if not journalists:
-        return P("No journalists tracked yet.", cls="text-xs text-muted px-2")
+        return P(t("no_journalists", lang), cls="text-xs text-muted px-2")
     items = []
     for j in journalists[:7]:
         pub = f" ({j['source_name']})" if j.get("source_name") else ""
@@ -504,34 +523,51 @@ def _journalist_widget(journalists: list[dict]):
     return Div(*items, hx_get="/api/journalists", hx_trigger="every 120s", hx_swap="outerHTML")
 
 
-def _config_panel():
+def _config_panel(lang: str = "en"):
     sources = fetch_all("SELECT id, name, domain, rss_url, language, is_active FROM sources ORDER BY name")
     return Details(
         Summary(
-            DivLAligned(UkIcon("settings", height=14), Span("Sources", cls="text-xs font-semibold"), cls="gap-1"),
+            DivLAligned(UkIcon("settings", height=14), Span(t("configure_sources", lang), cls="text-xs font-semibold"), cls="gap-1"),
             cls="cursor-pointer list-none px-2 py-1",
         ),
         Div(
+            # Language selector
+            Div(
+                Div(t("language", lang), cls="sidebar-section-title"),
+                DivLAligned(
+                    *[A(
+                        DivLAligned(
+                            Span(info["flag"]),
+                            Span(info["native"], cls="text-xs"),
+                            cls="gap-1",
+                        ),
+                        href=f"/set-lang/{code}",
+                        cls="no-underline px-2 py-1 rounded text-xs" + (" bg-primary/10 font-semibold" if code == lang else " hover:bg-muted/50"),
+                    ) for code, info in LANGUAGES.items()],
+                    cls="gap-2 mb-3",
+                ),
+                cls="mb-2",
+            ),
             Form(
-                Input(name="name", placeholder="Name", cls="uk-input uk-form-small mb-1"),
-                Input(name="domain", placeholder="domain.com", cls="uk-input uk-form-small mb-1"),
-                Input(name="rss_url", placeholder="RSS URL", cls="uk-input uk-form-small mb-1"),
+                Input(name="name", placeholder=t("source_name", lang), cls="uk-input uk-form-small mb-1"),
+                Input(name="domain", placeholder=t("source_domain", lang), cls="uk-input uk-form-small mb-1"),
+                Input(name="rss_url", placeholder=t("rss_url", lang), cls="uk-input uk-form-small mb-1"),
                 Select(Option("EN", value="en"), Option("ET", value="et"), name="language", cls="uk-select uk-form-small mb-1"),
-                Button("Add", type="submit", cls=ButtonT.primary + " uk-button-small uk-width-1-1"),
+                Button(t("add_source", lang), type="submit", cls=ButtonT.primary + " uk-button-small uk-width-1-1"),
                 hx_post="/api/sources/add", hx_target="#sources-list", hx_swap="outerHTML",
             ),
-            _sources_list(sources),
+            _sources_list(sources, lang),
             cls="px-2 mt-2",
         ),
         cls="sidebar-section mt-2",
     )
 
 
-def _sources_list(sources: list[dict]):
+def _sources_list(sources: list[dict], lang: str = "en"):
     rows = []
     for s in sources:
         active_cls = "" if s["is_active"] else "opacity-50"
-        btn_text = "Off" if s["is_active"] else "On"
+        btn_text = t("unsubscribe", lang) if s["is_active"] else t("subscribe", lang)
         btn_cls = "uk-button-danger" if s["is_active"] else "uk-button-primary"
         rows.append(
             DivFullySpaced(
@@ -556,30 +592,31 @@ def _get_active_sources() -> list[dict]:
         ORDER BY article_count DESC
     """)
 
-def _get_recent_articles(limit: int = 20) -> list[dict]:
+def _get_recent_articles(limit: int = 20, lang: str = "en") -> list[dict]:
+    """Get recent articles, prioritizing the user's language."""
     return fetch_all("""
-        SELECT a.id, a.title, a.url, a.author, a.published_at,
+        SELECT a.id, a.title, a.title_en, a.title_et, a.language, a.url, a.author, a.published_at,
                s.name AS source_name,
                asent.label AS sentiment_label, asent.score AS sentiment_score
         FROM articles a
         LEFT JOIN sources s ON s.id = a.source_id
         LEFT JOIN article_sentiments asent ON asent.article_id = a.id
-        ORDER BY a.created_at DESC
+        ORDER BY CASE WHEN a.language = :lang THEN 0 ELSE 1 END, a.created_at DESC
         LIMIT :limit
-    """, {"limit": limit})
+    """, {"limit": limit, "lang": lang})
 
-def _group_topics(topics: list[dict]) -> list[dict]:
+def _group_topics(topics: list[dict], lang: str = "en") -> list[dict]:
     groups = {
-        "News & Politics": {"slugs": ["politics", "culture"], "icon": "landmark", "color": "#ef4444"},
-        "Business & Tech": {"slugs": ["business", "technology"], "icon": "briefcase", "color": "#3b82f6"},
-        "Sports & Science": {"slugs": ["sports", "science"], "icon": "trophy", "color": "#10b981"},
+        "topic_news_politics": {"slugs": ["politics", "culture"], "icon": "landmark", "color": "#ef4444"},
+        "topic_business_tech": {"slugs": ["business", "technology"], "icon": "briefcase", "color": "#3b82f6"},
+        "topic_sports_science": {"slugs": ["sports", "science"], "icon": "trophy", "color": "#10b981"},
     }
     result = []
-    topic_map = {t["slug"]: t for t in topics}
-    for name, g in groups.items():
+    topic_map = {tp["slug"]: tp for tp in topics}
+    for key, g in groups.items():
         count = sum(topic_map.get(s, {}).get("article_count", 0) for s in g["slugs"])
-        result.append({"name": name, "slug": g["slugs"][0], "icon": g["icon"], "color": g["color"],
-                        "article_count": count, "sub_slugs": g["slugs"]})
+        result.append({"name": t(key, lang), "name_i18n": t(key, lang), "slug": g["slugs"][0],
+                        "icon": g["icon"], "color": g["color"], "article_count": count, "sub_slugs": g["slugs"]})
     return result
 
 def _get_topics_with_counts() -> list[dict]:

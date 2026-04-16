@@ -38,6 +38,8 @@ CREATE TABLE IF NOT EXISTS newsguru.articles (
     source_id       UUID REFERENCES newsguru.sources(id) ON DELETE SET NULL,
     url             TEXT NOT NULL UNIQUE,
     title           TEXT NOT NULL,
+    title_en        TEXT,
+    title_et        TEXT,
     summary         TEXT,
     full_text       TEXT,
     author          VARCHAR(512),

@@ -1,8 +1,25 @@
 from fasthtml.common import *
 from monsterui.all import *
 
+# Language flag emoji
+_FLAGS = {"en": "\U0001f1ec\U0001f1e7", "et": "\U0001f1ea\U0001f1ea"}
 
-def ArticleCard(article: dict):
+
+def _get_display_title(article: dict, lang: str = "en") -> str:
+    """Get the article title in the user's language."""
+    # If article is already in user's language, use original title
+    article_lang = article.get("language", "en")
+    if article_lang == lang:
+        return article.get("title", "Untitled")
+    # Try translated title
+    translated = article.get(f"title_{lang}")
+    if translated:
+        return translated
+    # Fallback to original
+    return article.get("title", "Untitled")
+
+
+def ArticleCard(article: dict, lang: str = "en"):
     sentiment = article.get("sentiment_label", "")
     score = article.get("sentiment_score")
     sentiment_cls = {
@@ -21,9 +38,15 @@ def ArticleCard(article: dict):
     if pub_date and hasattr(pub_date, "strftime"):
         pub_date = pub_date.strftime("%H:%M")
 
+    # Show flag of original language
+    article_lang = article.get("language", "en")
+    flag = _FLAGS.get(article_lang, "")
+
+    title = _get_display_title(article, lang)
+
     return Div(
         A(
-            Strong(article.get("title", "Untitled"), cls="text-sm"),
+            Strong(f"{flag} {title}" if flag else title, cls="text-sm"),
             href=article.get("url", "#"),
             target="_blank",
             cls="no-underline hover:underline",

@@ -68,6 +68,10 @@ async def _process_article(raw: dict, article_queue: asyncio.Queue, topic_queues
     text_for_sentiment = scraped.get("full_text") or raw.get("summary", "")
     await score_sentiment(article_id, raw["title"], text_for_sentiment)
 
+    # Translate title to the other language
+    from services.translate_service import translate_article_title
+    await translate_article_title(article_id, raw["title"], raw.get("language", "en"))
+
     # Build article dict for SSE push
     article_for_push = _build_push_article(article_id)
     if article_for_push:
@@ -88,7 +92,7 @@ async def _process_article(raw: dict, article_queue: asyncio.Queue, topic_queues
 
 def _build_push_article(article_id: str) -> dict | None:
     return fetch_one("""
-        SELECT a.id, a.title, a.url, a.author, a.published_at,
+        SELECT a.id, a.title, a.title_en, a.title_et, a.language, a.url, a.author, a.published_at,
                s.name AS source_name,
                asent.label AS sentiment_label, asent.score AS sentiment_score
         FROM articles a

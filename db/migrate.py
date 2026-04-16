@@ -51,8 +51,21 @@ def seed_topics():
     print(f"Seeded {len(topics)} topics.")
 
 
+def add_translation_columns():
+    """Add title_en and title_et columns if they don't exist."""
+    engine = get_engine()
+    with engine.connect() as conn:
+        conn.execute(text("""
+            ALTER TABLE newsguru.articles ADD COLUMN IF NOT EXISTS title_en TEXT;
+            ALTER TABLE newsguru.articles ADD COLUMN IF NOT EXISTS title_et TEXT;
+        """))
+        conn.commit()
+    print("Translation columns added.")
+
+
 if __name__ == "__main__":
     run_schema()
+    add_translation_columns()
     seed_sources()
     seed_topics()
     print("Migration complete.")
