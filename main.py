@@ -536,7 +536,20 @@ def _nav_bar(lang: str = "en", user: dict = None):
             A(t("register", lang), href="/register", cls="uk-button uk-button-primary uk-button-small"),
         ]
     return Div(
-        A(DivLAligned(UkIcon("newspaper", height=22), Span("NewsGuru", cls="text-lg font-bold"), cls="gap-2"), href="/", cls="no-underline"),
+        A(DivLAligned(
+            UkIcon("newspaper", height=22),
+            Div(
+                Span(
+                    Span("N", style="color:#4285f4;"), Span("e", style="color:#ea4335;"),
+                    Span("w", style="color:#fbbc05;"), Span("s", style="color:#4285f4;"),
+                    Span("G", style="color:#34a853;"), Span("u", style="color:#ea4335;"),
+                    Span("r", style="color:#fbbc05;"), Span("u", style="color:#4285f4;"),
+                    cls="text-lg font-bold",
+                ),
+                Span("beta", style="font-size:0.5rem; color:#9ca3af; vertical-align:super; margin-left:2px;"),
+            ),
+            cls="gap-2",
+        ), href="/", cls="no-underline"),
         DivLAligned(*right_items, cls="gap-3"),
         cls="app-nav",
     )
