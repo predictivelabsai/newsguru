@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 load_dotenv()
 
-APP_VERSION = "0.12.0 (2026-04-17)"
+APP_VERSION = "0.12.1 (2026-04-17)"
 
 from utils.config import load_config, get_topics, get_topic_by_slug
 from db.pool import get_db, fetch_all, fetch_one, execute_sql
