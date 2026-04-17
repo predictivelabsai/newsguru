@@ -173,15 +173,20 @@ def _build_messages(chat_history: list[dict], topic_slug: str = None) -> list:
     context = _get_recent_articles_context(topic_slug)
     system_msg = f"""You are NewsGuru, an AI-powered news assistant. You help users understand current events.
 
-You have access to tools:
-- search_tavily: Search web for latest news via Tavily
-- search_exa: Neural search via Exa for specific articles
-- get_recent_articles: Query the NewsGuru article database by topic
-- get_story_clusters: Get multi-source coverage — same story from different publications with sentiment comparison
+You have access to tools — use them aggressively:
+- search_tavily: Search the web for breaking/recent news. Use for current events and trending topics.
+- search_exa: Neural search — better for specific queries, research articles, or finding nuanced coverage.
+- get_recent_articles: Query the NewsGuru database (articles already scraped from RSS feeds). Use for Estonian and English news we track.
+- get_story_clusters: Get multi-source coverage — same story from different publications with sentiment comparison.
 
-IMPORTANT: When showing news, always try to show multi-source coverage. Use get_story_clusters to find how different publications cover the same event. Show source name, sentiment score, and URL for each.
+STRATEGY:
+1. For broad questions ("what's happening", "latest news"): use get_story_clusters first, then get_recent_articles.
+2. For specific queries ("Estonian crisis committee", "AI regulation"): use BOTH search_tavily AND search_exa to get diverse results. Also check get_recent_articles.
+3. Always show source name, sentiment score, and clickable URL for each article.
+4. Compare how different sources cover the same story when possible.
+5. Keep responses concise — bullet points with links, not paragraphs.
 
-Format your responses with clear structure using markdown: headers (##), bold (**text**), bullet lists, and links [title](url). For multi-source topics, show each source's coverage and sentiment side by side.
+Format: use markdown headers (##), bold (**text**), bullet lists, and [title](url) links.
 
 RECENT ARTICLES IN DATABASE:
 {context}"""
@@ -281,21 +286,39 @@ async def get_chat_response_stream(
             call_id = tc.get("id", f"call_{unique_calls.index(tc)}")
             messages.append(ToolMessage(content=str(result), tool_call_id=call_id))
 
-        # Second LLM call with tool results
+        # Second LLM call with tool results — retry up to 2 times
         yield {"type": "status", "text": "Composing response..."}
         full_text = ""
-        try:
-            async for chunk in llm.astream(messages):
-                if chunk.content:
-                    full_text += chunk.content
-        except Exception as e:
-            logger.error(f"Second LLM call error: {e}")
-            yield {"type": "token", "html": f'<p class="text-red-500">Error: {e}</p>'}
-            return
+        for attempt in range(2):
+            try:
+                async for chunk in llm.astream(messages):
+                    if chunk.content:
+                        full_text += chunk.content
+                if full_text:
+                    break
+                # Empty response — retry with a nudge
+                logger.warning(f"Empty LLM response on attempt {attempt+1}, retrying...")
+                messages.append(HumanMessage(content="Please provide your analysis based on the tool results above."))
+                yield {"type": "status", "text": "Retrying..."}
+            except Exception as e:
+                logger.error(f"LLM call error (attempt {attempt+1}): {e}")
+                if attempt == 1:
+                    yield {"type": "token", "html": f'<p class="text-red-500">Error: {e}</p>'}
+                    return
 
     # Convert final markdown to HTML and yield
     if full_text:
         html = md_to_html(full_text)
         yield {"type": "token", "html": html}
     else:
-        yield {"type": "token", "html": "<p>I couldn't generate a response. Please try again.</p>"}
+        # Last resort: render the tool results directly as HTML
+        logger.warning("All LLM attempts returned empty, rendering tool results directly")
+        fallback_parts = []
+        for msg in messages:
+            if hasattr(msg, 'content') and isinstance(msg, ToolMessage):
+                fallback_parts.append(msg.content)
+        if fallback_parts:
+            fallback_md = "\n\n".join(fallback_parts)
+            yield {"type": "token", "html": md_to_html(fallback_md)}
+        else:
+            yield {"type": "token", "html": "<p style='color:#6b7280;'>No results found. Try rephrasing your question.</p>"}

@@ -1,6 +1,6 @@
 # NewsGuru Test Coverage Report
 
-Generated: 2026-04-17 07:37:56
+Generated: 2026-04-17 08:00:28
 
 **Total: 60 tests | Passed: 60 | Failed: 0**
 
