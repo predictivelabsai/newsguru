@@ -1,6 +1,6 @@
 # NewsGuru Test Coverage Report
 
-Generated: 2026-04-17 07:32:48
+Generated: 2026-04-17 07:37:56
 
 **Total: 60 tests | Passed: 60 | Failed: 0**
 
@@ -48,7 +48,7 @@ Generated: 2026-04-17 07:32:48
 | 40 | Journalist map in chat: share widget | PASS |  |
 | 41 | Left pane: Journalist Map link | PASS |  |
 | 42 | Chat: user message shown | PASS |  |
-| 43 | Chat: assistant response present | PASS | 2 responses |
+| 43 | Chat: assistant response present | PASS | 3 responses |
 | 44 | Chat: share widget present | PASS |  |
 | 45 | Topic /politics returns 200 | PASS |  |
 | 46 | Topic /technology returns 200 | PASS |  |

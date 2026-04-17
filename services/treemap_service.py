@@ -279,10 +279,15 @@ def build_journalist_chat_html() -> str:
     cluster_html = ""
     try:
         from agents.topic_modeler import get_daily_clusters
-        clusters = get_daily_clusters(5)
+        clusters = get_daily_clusters(8)
+        # Filter: only real multi-source clusters, skip "unclustered" and single-source
+        clusters = [c for c in clusters
+                    if c.get("article_count", 0) >= 2
+                    and "unclustered" not in c.get("cluster_label", "").lower()
+                    and len(set(a.get("source_name", "") for a in c.get("articles", []))) >= 2]
         if clusters:
             c_items = []
-            for c in clusters:
+            for c in clusters[:5]:
                 sources = [a.get("source_name", "") for a in c.get("articles", [])]
                 unique_src = list(dict.fromkeys(s for s in sources if s))[:3]
                 sents = [a["sentiment_score"] for a in c.get("articles", []) if a.get("sentiment_score") is not None]

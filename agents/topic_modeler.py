@@ -67,7 +67,8 @@ ARTICLES:
 
 Rules:
 - A cluster must have 2+ articles from DIFFERENT sources covering the SAME story/event
-- Single-source stories should NOT be clustered (set them as cluster "unclustered")
+- Do NOT include single-source stories. Simply skip them entirely.
+- Do NOT create an "unclustered" or catch-all bucket. Only output real story clusters.
 - Cluster label should be a short, factual description of the event (not a headline)
 - Maximum 15 clusters
 
@@ -77,7 +78,7 @@ Return ONLY valid JSON array:
   ...
 ]
 
-Only include clusters with 2+ articles from different sources. Omit single-article clusters."""
+Only include clusters with 2+ articles from different sources. Do NOT include leftover/unclustered articles."""
 
     try:
         llm = _get_llm()
