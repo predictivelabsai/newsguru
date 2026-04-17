@@ -221,21 +221,54 @@ async def run():
 
         # ===== 7c. Chat title generation =====
         print("\n--- Chat Titles ---")
-        # Check that session titles are descriptive
         try:
             import sys
             sys.path.insert(0, str(Path(__file__).parent.parent))
-            from main import _generate_chat_title
+            from main import _generate_chat_title, _is_news_digest_request
             t1 = _generate_chat_title("What are the main news today?")
-            log("Title gen: news digest", t1 == "Today's Top News", f'"{t1}"')
+            log("Title: main news -> topic title", t1 == "Today's Top News", f'"{t1}"')
             t2 = _generate_chat_title("heatmap")
-            log("Title gen: heatmap", t2 == "Significance Map", f'"{t2}"')
+            log("Title: heatmap -> Significance Map", t2 == "Significance Map", f'"{t2}"')
             t3 = _generate_chat_title("journalist map")
-            log("Title gen: journalist map", t3 == "Journalist Map", f'"{t3}"')
-            t4 = _generate_chat_title("What is the latest on climate change?")
-            log("Title gen: specific question", "New chat" not in t4 and len(t4) < 50, f'"{t4}"')
+            log("Title: journalist map", t3 == "Journalist Map", f'"{t3}"')
+            t4 = _generate_chat_title("What are Estonian media reporting?")
+            log("Title: estonian media", "Estonian" in t4, f'"{t4}"')
+            t5 = _generate_chat_title("Top business and market headlines")
+            log("Title: business headlines", "Business" in t5, f'"{t5}"')
+            t6 = _generate_chat_title("Latest developments in AI and technology")
+            log("Title: AI/tech", "Tech" in t6, f'"{t6}"')
         except Exception as e:
             log("Title gen: works", False, str(e)[:60])
+
+        # ===== 7e. All starter cards caught by news digest =====
+        print("\n--- Starter Card Coverage ---")
+        starters_en = [
+            "What are the main news today?",
+            "Latest developments in AI and technology",
+            "What's happening in global politics?",
+            "Top business and market headlines",
+            "Most significant events this week",
+            "What are Estonian media reporting?",
+        ]
+        for s in starters_en:
+            is_digest = _is_news_digest_request([{"role": "user", "content": s}])
+            log(f"Starter caught: {s[:35]}...", is_digest)
+
+        # ===== 7f. Estonian media starter card =====
+        print("\n--- Estonian Media Card ---")
+        await page.goto(BASE)
+        await asyncio.sleep(2)
+        await page.evaluate("""() => {
+            var inp = document.getElementById('chat-input');
+            inp.value = 'What are Estonian media reporting?';
+            inp.disabled = false;
+            inp.form.requestSubmit();
+        }""")
+        await asyncio.sleep(8)
+        body_et = await page.evaluate('() => document.body.innerText')
+        log("Estonian media: no error", "couldn't generate" not in body_et)
+        log("Estonian media: has response", await page.evaluate('() => document.querySelectorAll(".chat-assistant").length') > 0)
+        await page.screenshot(path=str(SCREENSHOTS / "07c-estonian-media.png"))
 
         # ===== 7d. Topic click creates fresh session =====
         print("\n--- Fresh Sessions ---")

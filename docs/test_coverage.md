@@ -1,8 +1,8 @@
 # NewsGuru Test Coverage Report
 
-Generated: 2026-04-17 08:15:06
+Generated: 2026-04-17 08:36:04
 
-**Total: 76 tests | Passed: 76 | Failed: 0**
+**Total: 86 tests | Passed: 86 | Failed: 0**
 
 | # | Test | Status | Detail |
 |---|------|--------|--------|
@@ -19,7 +19,7 @@ Generated: 2026-04-17 08:15:06
 | 11 | Left pane: Methodology link | PASS |  |
 | 12 | Left pane: About Us link | PASS |  |
 | 13 | Starter cards present | PASS | found 6 (0 ok if session has history) |
-| 14 | Live feed has articles | PASS | 21 items |
+| 14 | Live feed has articles | PASS | 20 items |
 | 15 | Login page returns 200 | PASS |  |
 | 16 | Login has email field | PASS |  |
 | 17 | Register page returns 200 | PASS |  |
@@ -48,53 +48,63 @@ Generated: 2026-04-17 08:15:06
 | 40 | Journalist map in chat: share widget | PASS |  |
 | 41 | Left pane: Journalist Map link | PASS |  |
 | 42 | News digest: user message shown | PASS |  |
-| 43 | News digest: response present | PASS | 2 bubbles |
+| 43 | News digest: response present | PASS | 3 bubbles |
 | 44 | News digest: no LLM text bloat | PASS |  |
 | 45 | News digest: has structured sections | PASS |  |
 | 46 | News digest: no error message | PASS |  |
 | 47 | News digest: share widget present | PASS |  |
 | 48 | Specific query: user message shown | PASS |  |
-| 49 | Specific query: got response | PASS | 2 bubbles |
+| 49 | Specific query: got response | PASS | 3 bubbles |
 | 50 | Specific query: no error message | PASS |  |
 | 51 | Specific query: share widget | PASS |  |
-| 52 | Title gen: news digest | PASS | "Today's Top News" |
-| 53 | Title gen: heatmap | PASS | "Significance Map" |
-| 54 | Title gen: journalist map | PASS | "Journalist Map" |
-| 55 | Title gen: specific question | PASS | "Latest on climate change" |
-| 56 | Topic click: fresh session (starter cards) | PASS | 6 cards |
-| 57 | Topic /politics returns 200 | PASS |  |
-| 58 | Topic /technology returns 200 | PASS |  |
-| 59 | Invalid topic redirects | PASS | url=http://localhost:5020/topic/nonexistent |
-| 60 | Story clusters table exists | PASS |  |
-| 61 | Article clusters table exists | PASS |  |
-| 62 | Topic modeler: get_daily_clusters works | PASS | 5 clusters |
-| 63 | Chat tool: get_story_clusters registered | PASS |  |
-| 64 | Chat tool: search_tavily registered | PASS |  |
-| 65 | Chat tool: search_exa registered | PASS |  |
-| 66 | Chat tool: get_recent_articles registered | PASS |  |
-| 67 | Cluster card: renderer loads | PASS |  |
-| 68 | Article cards render with related coverage field | PASS | no crash on load |
-| 69 | API /api/trending returns 200 | PASS |  |
-| 70 | API /api/journalists returns 200 | PASS |  |
-| 71 | API /api/sources returns 200 | PASS |  |
-| 72 | SSE /sse/feed returns 200 | PASS |  |
-| 73 | Language switch without login redirects to /login | PASS |  |
-| 74 | Mobile: tab bar visible | PASS |  |
-| 75 | Mobile: left pane hidden | PASS |  |
-| 76 | Session: history links present | PASS | 8 sessions |
+| 52 | Title: main news -> topic title | PASS | "Today's Top News" |
+| 53 | Title: heatmap -> Significance Map | PASS | "Significance Map" |
+| 54 | Title: journalist map | PASS | "Journalist Map" |
+| 55 | Title: estonian media | PASS | "Estonian News Digest" |
+| 56 | Title: business headlines | PASS | "Business Headlines" |
+| 57 | Title: AI/tech | PASS | "Tech & AI News" |
+| 58 | Starter caught: What are the main news today?... | PASS |  |
+| 59 | Starter caught: Latest developments in AI and techn... | PASS |  |
+| 60 | Starter caught: What's happening in global politics... | PASS |  |
+| 61 | Starter caught: Top business and market headlines... | PASS |  |
+| 62 | Starter caught: Most significant events this week... | PASS |  |
+| 63 | Starter caught: What are Estonian media reporting?... | PASS |  |
+| 64 | Estonian media: no error | PASS |  |
+| 65 | Estonian media: has response | PASS |  |
+| 66 | Topic click: fresh session (starter cards) | PASS | 6 cards |
+| 67 | Topic /politics returns 200 | PASS |  |
+| 68 | Topic /technology returns 200 | PASS |  |
+| 69 | Invalid topic redirects | PASS | url=http://localhost:5020/topic/nonexistent |
+| 70 | Story clusters table exists | PASS |  |
+| 71 | Article clusters table exists | PASS |  |
+| 72 | Topic modeler: get_daily_clusters works | PASS | 5 clusters |
+| 73 | Chat tool: get_story_clusters registered | PASS |  |
+| 74 | Chat tool: search_tavily registered | PASS |  |
+| 75 | Chat tool: search_exa registered | PASS |  |
+| 76 | Chat tool: get_recent_articles registered | PASS |  |
+| 77 | Cluster card: renderer loads | PASS |  |
+| 78 | Article cards render with related coverage field | PASS | no crash on load |
+| 79 | API /api/trending returns 200 | PASS |  |
+| 80 | API /api/journalists returns 200 | PASS |  |
+| 81 | API /api/sources returns 200 | PASS |  |
+| 82 | SSE /sse/feed returns 200 | PASS |  |
+| 83 | Language switch without login redirects to /login | PASS |  |
+| 84 | Mobile: tab bar visible | PASS |  |
+| 85 | Mobile: left pane hidden | PASS |  |
+| 86 | Session: history links present | PASS | 8 sessions |
 
 ## Test Categories
 
-- **Page Load**: 17/17 passed
+- **Page Load**: 23/23 passed
 - **Authentication**: 9/9 passed
 - **Static Pages**: 13/13 passed
 - **Treemap**: 6/6 passed
 - **Journalist Map**: 10/10 passed
 - **Topic Modeling**: 3/3 passed
-- **Chat**: 23/23 passed
-- **Titles**: 4/4 passed
+- **Chat**: 22/22 passed
+- **Titles**: 0/0 passed
 - **Fresh Sessions**: 1/1 passed
-- **Navigation**: 6/6 passed
+- **Navigation**: 7/7 passed
 - **API**: 3/3 passed
 - **SSE**: 1/1 passed
 - **Language**: 1/1 passed
@@ -117,5 +127,6 @@ All screenshots saved to `screenshots/regression/`
 - [07-chat-response.png](../screenshots/regression/07-chat-response.png)
 - [07-news-digest.png](../screenshots/regression/07-news-digest.png)
 - [07b-specific-query.png](../screenshots/regression/07b-specific-query.png)
+- [07c-estonian-media.png](../screenshots/regression/07c-estonian-media.png)
 - [08-topic-politics.png](../screenshots/regression/08-topic-politics.png)
 - [09-mobile.png](../screenshots/regression/09-mobile.png)

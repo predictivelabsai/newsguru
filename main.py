@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 load_dotenv()
 
-APP_VERSION = "0.12.1 (2026-04-17)"
+APP_VERSION = "0.13.0 (2026-04-17)"
 
 from utils.config import load_config, get_topics, get_topic_by_slug
 from db.pool import get_db, fetch_all, fetch_one, execute_sql
@@ -276,9 +276,17 @@ def _is_treemap_request(messages: list[dict]) -> bool:
     return any(kw in text for kw in _TREEMAP_KEYWORDS)
 
 
-_NEWS_DIGEST_KEYWORDS = ["main news today", "top news", "what's happening", "today's headlines",
-                          "latest news", "news summary", "news digest", "peamised uudised",
-                          "tänased uudised", "mis toimub"]
+_NEWS_DIGEST_KEYWORDS = [
+    # English
+    "main news today", "top news", "what's happening", "today's headlines",
+    "latest news", "news summary", "news digest", "top stories",
+    "latest developments", "market headlines", "business headlines",
+    "significant events", "estonian media", "global politics",
+    "what are the main", "what is happening",
+    # Estonian
+    "peamised uudised", "tänased uudised", "mis toimub", "olulisimad sündmused",
+    "eesti meedia", "viimased arengud", "äri- ja turg",
+]
 
 def _is_news_digest_request(messages: list[dict]) -> bool:
     if not messages:
@@ -1260,6 +1268,17 @@ def _generate_chat_title(msg: str) -> str:
     if any(kw in text for kw in _JOURNALIST_KEYWORDS):
         return "Journalist Map"
     if any(kw in text for kw in _NEWS_DIGEST_KEYWORDS):
+        # Try to extract a topic-specific title
+        if "estonian" in text or "eesti" in text:
+            return "Estonian News Digest"
+        if "business" in text or "market" in text or "äri" in text:
+            return "Business Headlines"
+        if "politic" in text or "poliitika" in text:
+            return "Politics Digest"
+        if "tech" in text or "ai " in text or "tehno" in text:
+            return "Tech & AI News"
+        if "significant" in text or "olulisimad" in text:
+            return "Most Significant Today"
         return "Today's Top News"
 
     # For regular questions: clean up common prefixes and truncate
