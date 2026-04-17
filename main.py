@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 load_dotenv()
 
-APP_VERSION = "0.10.0 (2026-04-17)"
+APP_VERSION = "0.11.0 (2026-04-17)"
 
 from utils.config import load_config, get_topics, get_topic_by_slug
 from db.pool import get_db, fetch_all, fetch_one, execute_sql
@@ -203,10 +203,11 @@ async def chat_send(session_id: str, msg: str):
         INSERT INTO chat_messages (session_id, role, content)
         VALUES (:sid, 'user', :content)
     """, {"sid": session_id, "content": msg})
+    title = _generate_chat_title(msg)
     execute_sql("""
         UPDATE chat_sessions SET title = :title, updated_at = NOW()
         WHERE id = :sid AND title = 'New chat'
-    """, {"sid": session_id, "title": msg[:60]})
+    """, {"sid": session_id, "title": title})
 
     user_bubble = ChatMessageBubble("user", msg)
     thinking = Div(
@@ -1248,6 +1249,41 @@ def _get_top_journalists() -> list[dict]:
         FROM journalists j LEFT JOIN sources s ON s.id = j.source_id
         ORDER BY j.article_count DESC, j.last_seen_at DESC LIMIT 10
     """)
+
+def _generate_chat_title(msg: str) -> str:
+    """Generate a short descriptive title for a chat session from the user's message."""
+    text = msg.strip().lower()
+
+    # Known triggers get clean titles
+    if any(kw in text for kw in _TREEMAP_KEYWORDS):
+        return "Significance Map"
+    if any(kw in text for kw in _JOURNALIST_KEYWORDS):
+        return "Journalist Map"
+    if any(kw in text for kw in _NEWS_DIGEST_KEYWORDS):
+        return "Today's Top News"
+
+    # For regular questions: clean up common prefixes and truncate
+    cleaned = msg.strip()
+    for prefix in ["What are the ", "What is the ", "What's the ", "What are ",
+                    "Tell me about ", "Show me the ", "Show me ", "Search for ",
+                    "Find ", "How is ", "How are ", "Who is ",
+                    "Mis on ", "Millised on ", "Näita mulle ", "Räägi mulle ",
+                    "Show recent articles by "]:
+        if cleaned.lower().startswith(prefix.lower()):
+            cleaned = cleaned[len(prefix):]
+            break
+
+    # Remove trailing question mark, capitalize first letter
+    cleaned = cleaned.rstrip("?").strip()
+    if cleaned:
+        cleaned = cleaned[0].upper() + cleaned[1:]
+
+    # Truncate to 40 chars at word boundary
+    if len(cleaned) > 40:
+        cleaned = cleaned[:37].rsplit(" ", 1)[0] + "..."
+
+    return cleaned or msg[:40]
+
 
 def _create_new_session(topic_slug: str) -> dict:
     """Always create a fresh chat session."""
