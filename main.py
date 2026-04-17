@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 load_dotenv()
 
-APP_VERSION = "0.9.0 (2026-04-17)"
+APP_VERSION = "0.10.0 (2026-04-17)"
 
 from utils.config import load_config, get_topics, get_topic_by_slug
 from db.pool import get_db, fetch_all, fetch_one, execute_sql
@@ -275,6 +275,20 @@ def _is_treemap_request(messages: list[dict]) -> bool:
     return any(kw in text for kw in _TREEMAP_KEYWORDS)
 
 
+_NEWS_DIGEST_KEYWORDS = ["main news today", "top news", "what's happening", "today's headlines",
+                          "latest news", "news summary", "news digest", "peamised uudised",
+                          "tänased uudised", "mis toimub"]
+
+def _is_news_digest_request(messages: list[dict]) -> bool:
+    if not messages:
+        return False
+    last = messages[-1]
+    if last.get("role") != "user":
+        return False
+    text = last.get("content", "").strip().lower()
+    return any(kw in text for kw in _NEWS_DIGEST_KEYWORDS)
+
+
 _JOURNALIST_KEYWORDS = ["journalist map", "journalist treemap", "journalist chart", "ajakirjanike kaart"]
 
 
@@ -289,13 +303,17 @@ def _is_journalist_map_request(messages: list[dict]) -> bool:
 
 
 async def _chat_stream(session_id: str, messages: list[dict], topic_slug: str = None):
-    # Check special map requests
+    # Check special requests — render directly without LLM
     if _is_treemap_request(messages):
         async for msg in _treemap_stream(session_id):
             yield msg
         return
     if _is_journalist_map_request(messages):
         async for msg in _journalist_map_stream(session_id):
+            yield msg
+        return
+    if _is_news_digest_request(messages):
+        async for msg in _news_digest_stream(session_id):
             yield msg
         return
 
@@ -379,6 +397,58 @@ async def _journalist_map_stream(session_id: str):
     )
     chat_html = await asyncio.to_thread(build_journalist_chat_html)
     full_html = f'<p style="font-size:0.8rem;color:#6b7280;margin-bottom:6px;">Journalist map (last 24h). Publication -> Topic -> Journalist. Color = avg significance.</p>{chat_html}'
+    yield sse_message(
+        Div(
+            Script("var el=document.getElementById('thinking-indicator'); if(el) el.remove();"),
+            Div(NotStr(full_html), cls="chat-assistant"),
+        ),
+        event="token",
+    )
+    execute_sql("""
+        INSERT INTO chat_messages (session_id, role, content)
+        VALUES (:sid, 'assistant', :content)
+    """, {"sid": session_id, "content": full_html})
+    yield sse_message(_share_widget(session_id), event="token")
+    yield sse_message(
+        Script("document.getElementById('chat-input').disabled=false; document.getElementById('chat-input').focus();"),
+        event="token",
+    )
+
+
+async def _news_digest_stream(session_id: str):
+    """Render top news as HTML cards — clustered articles + top stories, no LLM."""
+    from agents.topic_modeler import get_daily_clusters
+    from components.cluster_card import render_clusters_html, render_top_articles_html
+    from db.pool import fetch_all as db_fetch
+
+    yield sse_message(
+        Script("document.getElementById('thinking-text').textContent='Loading today\\'s top stories...';"),
+        event="token",
+    )
+
+    clusters = await asyncio.to_thread(get_daily_clusters, 6)
+    cluster_html = await asyncio.to_thread(render_clusters_html, clusters)
+
+    # Also get top articles by significance that aren't in clusters
+    top_articles = await asyncio.to_thread(lambda: db_fetch("""
+        SELECT a.title, a.url, s.name AS source_name,
+               asig.significance_score, asent.score AS sentiment_score, asent.label AS sentiment_label
+        FROM articles a
+        LEFT JOIN sources s ON s.id = a.source_id
+        LEFT JOIN article_significance asig ON asig.article_id = a.id
+        LEFT JOIN article_sentiments asent ON asent.article_id = a.id
+        WHERE a.created_at > NOW() - INTERVAL '24 hours'
+          AND asig.significance_score IS NOT NULL
+        ORDER BY asig.significance_score DESC
+        LIMIT 8
+    """))
+    top_html = await asyncio.to_thread(render_top_articles_html, top_articles)
+
+    full_html = ""
+    if cluster_html and clusters:
+        full_html += f'<p style="font-size:0.8rem;font-weight:600;color:#374151;margin-bottom:8px;">Multi-Source Stories</p>{cluster_html}'
+    full_html += f'<p style="font-size:0.8rem;font-weight:600;color:#374151;margin-bottom:8px;margin-top:12px;">Top by Significance</p>{top_html}'
+
     yield sse_message(
         Div(
             Script("var el=document.getElementById('thinking-indicator'); if(el) el.remove();"),
