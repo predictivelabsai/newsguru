@@ -1,8 +1,8 @@
 # NewsGuru Test Coverage Report
 
-Generated: 2026-04-17 08:00:28
+Generated: 2026-04-17 08:15:06
 
-**Total: 60 tests | Passed: 60 | Failed: 0**
+**Total: 76 tests | Passed: 76 | Failed: 0**
 
 | # | Test | Status | Detail |
 |---|------|--------|--------|
@@ -19,7 +19,7 @@ Generated: 2026-04-17 08:00:28
 | 11 | Left pane: Methodology link | PASS |  |
 | 12 | Left pane: About Us link | PASS |  |
 | 13 | Starter cards present | PASS | found 6 (0 ok if session has history) |
-| 14 | Live feed has articles | PASS | 20 items |
+| 14 | Live feed has articles | PASS | 21 items |
 | 15 | Login page returns 200 | PASS |  |
 | 16 | Login has email field | PASS |  |
 | 17 | Register page returns 200 | PASS |  |
@@ -47,41 +47,59 @@ Generated: 2026-04-17 08:00:28
 | 39 | Journalist map in chat: journalist list below | PASS |  |
 | 40 | Journalist map in chat: share widget | PASS |  |
 | 41 | Left pane: Journalist Map link | PASS |  |
-| 42 | Chat: user message shown | PASS |  |
-| 43 | Chat: assistant response present | PASS | 3 responses |
-| 44 | Chat: share widget present | PASS |  |
-| 45 | Topic /politics returns 200 | PASS |  |
-| 46 | Topic /technology returns 200 | PASS |  |
-| 47 | Invalid topic redirects | PASS | url=http://localhost:5020/topic/nonexistent |
-| 48 | Story clusters table exists | PASS |  |
-| 49 | Article clusters table exists | PASS |  |
-| 50 | Topic modeler: get_daily_clusters works | PASS | 5 clusters |
-| 51 | Chat tool: get_story_clusters registered | PASS |  |
-| 52 | Article cards render with related coverage field | PASS | no crash on load |
-| 53 | API /api/trending returns 200 | PASS |  |
-| 54 | API /api/journalists returns 200 | PASS |  |
-| 55 | API /api/sources returns 200 | PASS |  |
-| 56 | SSE /sse/feed returns 200 | PASS |  |
-| 57 | Language switch without login redirects to /login | PASS |  |
-| 58 | Mobile: tab bar visible | PASS |  |
-| 59 | Mobile: left pane hidden | PASS |  |
-| 60 | Session: history links present | PASS | 8 sessions |
+| 42 | News digest: user message shown | PASS |  |
+| 43 | News digest: response present | PASS | 2 bubbles |
+| 44 | News digest: no LLM text bloat | PASS |  |
+| 45 | News digest: has structured sections | PASS |  |
+| 46 | News digest: no error message | PASS |  |
+| 47 | News digest: share widget present | PASS |  |
+| 48 | Specific query: user message shown | PASS |  |
+| 49 | Specific query: got response | PASS | 2 bubbles |
+| 50 | Specific query: no error message | PASS |  |
+| 51 | Specific query: share widget | PASS |  |
+| 52 | Title gen: news digest | PASS | "Today's Top News" |
+| 53 | Title gen: heatmap | PASS | "Significance Map" |
+| 54 | Title gen: journalist map | PASS | "Journalist Map" |
+| 55 | Title gen: specific question | PASS | "Latest on climate change" |
+| 56 | Topic click: fresh session (starter cards) | PASS | 6 cards |
+| 57 | Topic /politics returns 200 | PASS |  |
+| 58 | Topic /technology returns 200 | PASS |  |
+| 59 | Invalid topic redirects | PASS | url=http://localhost:5020/topic/nonexistent |
+| 60 | Story clusters table exists | PASS |  |
+| 61 | Article clusters table exists | PASS |  |
+| 62 | Topic modeler: get_daily_clusters works | PASS | 5 clusters |
+| 63 | Chat tool: get_story_clusters registered | PASS |  |
+| 64 | Chat tool: search_tavily registered | PASS |  |
+| 65 | Chat tool: search_exa registered | PASS |  |
+| 66 | Chat tool: get_recent_articles registered | PASS |  |
+| 67 | Cluster card: renderer loads | PASS |  |
+| 68 | Article cards render with related coverage field | PASS | no crash on load |
+| 69 | API /api/trending returns 200 | PASS |  |
+| 70 | API /api/journalists returns 200 | PASS |  |
+| 71 | API /api/sources returns 200 | PASS |  |
+| 72 | SSE /sse/feed returns 200 | PASS |  |
+| 73 | Language switch without login redirects to /login | PASS |  |
+| 74 | Mobile: tab bar visible | PASS |  |
+| 75 | Mobile: left pane hidden | PASS |  |
+| 76 | Session: history links present | PASS | 8 sessions |
 
 ## Test Categories
 
-- **Page Load**: 16/16 passed
-- **Authentication**: 6/6 passed
+- **Page Load**: 17/17 passed
+- **Authentication**: 9/9 passed
 - **Static Pages**: 13/13 passed
 - **Treemap**: 6/6 passed
-- **Journalist Map**: 9/9 passed
+- **Journalist Map**: 10/10 passed
 - **Topic Modeling**: 3/3 passed
-- **Chat**: 12/12 passed
-- **Navigation**: 5/5 passed
+- **Chat**: 23/23 passed
+- **Titles**: 4/4 passed
+- **Fresh Sessions**: 1/1 passed
+- **Navigation**: 6/6 passed
 - **API**: 3/3 passed
 - **SSE**: 1/1 passed
 - **Language**: 1/1 passed
 - **Mobile**: 2/2 passed
-- **Session**: 1/1 passed
+- **Session**: 2/2 passed
 
 ## Screenshots
 
@@ -97,5 +115,7 @@ All screenshots saved to `screenshots/regression/`
 - [06b-journalist-standalone.png](../screenshots/regression/06b-journalist-standalone.png)
 - [06c-journalist-in-chat.png](../screenshots/regression/06c-journalist-in-chat.png)
 - [07-chat-response.png](../screenshots/regression/07-chat-response.png)
+- [07-news-digest.png](../screenshots/regression/07-news-digest.png)
+- [07b-specific-query.png](../screenshots/regression/07b-specific-query.png)
 - [08-topic-politics.png](../screenshots/regression/08-topic-politics.png)
 - [09-mobile.png](../screenshots/regression/09-mobile.png)

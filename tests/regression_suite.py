@@ -172,8 +172,8 @@ async def run():
         has_j_link = await page.evaluate('() => document.body.innerText.includes("Journalist Map")')
         log("Left pane: Journalist Map link", has_j_link)
 
-        # ===== 7. Chat interaction =====
-        print("\n--- Chat Tests ---")
+        # ===== 7. News digest (HTML cards, not LLM text) =====
+        print("\n--- News Digest ---")
         await page.goto(BASE)
         await asyncio.sleep(2)
         await page.evaluate("""() => {
@@ -182,14 +182,67 @@ async def run():
             inp.disabled = false;
             inp.form.requestSubmit();
         }""")
-        await asyncio.sleep(15)
-        user_msg = await page.evaluate('() => document.body.innerText.includes("What are the main news")')
-        log("Chat: user message shown", user_msg)
-        response = await page.evaluate('() => document.querySelectorAll(".chat-assistant").length')
-        log("Chat: assistant response present", response > 0, f"{response} responses")
-        share = await page.evaluate('() => document.body.innerText.includes("Share this chat")')
-        log("Chat: share widget present", share)
-        await page.screenshot(path=str(SCREENSHOTS / "07-chat-response.png"))
+        await asyncio.sleep(8)
+        body = await page.evaluate('() => document.body.innerText')
+        log("News digest: user message shown", "What are the main news" in body)
+        # Should render as HTML cards, NOT LLM text
+        has_cards = await page.evaluate('() => document.querySelectorAll(".chat-assistant").length')
+        log("News digest: response present", has_cards > 0, f"{has_cards} bubbles")
+        no_llm_bloat = "As NewsGuru" not in body and "I've queried" not in body
+        log("News digest: no LLM text bloat", no_llm_bloat)
+        has_top_by_sig = "Top by Significance" in body or "Multi-Source" in body
+        log("News digest: has structured sections", has_top_by_sig)
+        no_error = "couldn't generate" not in body
+        log("News digest: no error message", no_error)
+        share = "Share this chat" in body or "Copy link" in body
+        log("News digest: share widget present", share)
+        await page.screenshot(path=str(SCREENSHOTS / "07-news-digest.png"))
+
+        # ===== 7b. Specific query with tool usage =====
+        print("\n--- Specific Query ---")
+        await page.goto(BASE)
+        await asyncio.sleep(2)
+        await page.evaluate("""() => {
+            var inp = document.getElementById('chat-input');
+            inp.value = 'What is happening with US-Iran tensions?';
+            inp.disabled = false;
+            inp.form.requestSubmit();
+        }""")
+        await asyncio.sleep(25)  # Long wait — agent uses multiple tools
+        body2 = await page.evaluate('() => document.body.innerText')
+        log("Specific query: user message shown", "US-Iran" in body2)
+        resp2 = await page.evaluate('() => document.querySelectorAll(".chat-assistant").length')
+        log("Specific query: got response", resp2 > 0, f"{resp2} bubbles")
+        no_err2 = "couldn't generate" not in body2
+        log("Specific query: no error message", no_err2)
+        share2 = "Share this chat" in body2 or "Copy link" in body2
+        log("Specific query: share widget", share2)
+        await page.screenshot(path=str(SCREENSHOTS / "07b-specific-query.png"))
+
+        # ===== 7c. Chat title generation =====
+        print("\n--- Chat Titles ---")
+        # Check that session titles are descriptive
+        try:
+            import sys
+            sys.path.insert(0, str(Path(__file__).parent.parent))
+            from main import _generate_chat_title
+            t1 = _generate_chat_title("What are the main news today?")
+            log("Title gen: news digest", t1 == "Today's Top News", f'"{t1}"')
+            t2 = _generate_chat_title("heatmap")
+            log("Title gen: heatmap", t2 == "Significance Map", f'"{t2}"')
+            t3 = _generate_chat_title("journalist map")
+            log("Title gen: journalist map", t3 == "Journalist Map", f'"{t3}"')
+            t4 = _generate_chat_title("What is the latest on climate change?")
+            log("Title gen: specific question", "New chat" not in t4 and len(t4) < 50, f'"{t4}"')
+        except Exception as e:
+            log("Title gen: works", False, str(e)[:60])
+
+        # ===== 7d. Topic click creates fresh session =====
+        print("\n--- Fresh Sessions ---")
+        await page.goto(f"{BASE}/topic/politics")
+        await asyncio.sleep(2)
+        starter_on_topic = await page.evaluate('() => document.querySelectorAll(".starter-card").length')
+        log("Topic click: fresh session (starter cards)", starter_on_topic == 6, f"{starter_on_topic} cards")
 
         # ===== 8. Topic navigation =====
         print("\n--- Topic Navigation ---")
@@ -225,12 +278,23 @@ async def run():
         except Exception as e:
             log("Topic modeler: get_daily_clusters works", False, str(e)[:60])
 
-        # Check chat tool exists
+        # Check all chat tools exist
         try:
             from services.chat_service import TOOL_MAP
             log("Chat tool: get_story_clusters registered", "get_story_clusters" in TOOL_MAP)
+            log("Chat tool: search_tavily registered", "search_tavily" in TOOL_MAP)
+            log("Chat tool: search_exa registered", "search_exa" in TOOL_MAP)
+            log("Chat tool: get_recent_articles registered", "get_recent_articles" in TOOL_MAP)
         except Exception as e:
-            log("Chat tool: get_story_clusters registered", False, str(e)[:60])
+            log("Chat tools registered", False, str(e)[:60])
+
+        # Check cluster card renderer works
+        try:
+            from components.cluster_card import render_clusters_html, render_top_articles_html
+            html = render_clusters_html([])
+            log("Cluster card: renderer loads", True)
+        except Exception as e:
+            log("Cluster card: renderer loads", False, str(e)[:60])
 
         # Check article card handles related_coverage
         await page.goto(BASE)
@@ -313,7 +377,9 @@ def _write_report():
         "Treemap": ["Treemap"],
         "Journalist Map": ["Journalist"],
         "Topic Modeling": ["Topic model", "Story cluster", "story_clusters", "get_story_clusters"],
-        "Chat": ["Chat", "share"],
+        "Chat": ["Chat", "share", "News digest", "Specific query"],
+        "Titles": ["Title gen"],
+        "Fresh Sessions": ["Topic click", "Fresh session"],
         "Navigation": ["Topic", "Invalid"],
         "API": ["API"],
         "SSE": ["SSE"],
