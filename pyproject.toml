@@ -29,6 +29,8 @@ dependencies = [
     "exa_py>=2.0",
     # Markdown to HTML
     "markdown>=3.0",
+    # Password hashing
+    "bcrypt>=4.0",
     # plotly loaded client-side via CDN, no server dep needed
     # Config
     "pyyaml>=6.0",

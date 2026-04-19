@@ -26,6 +26,8 @@ def _get_llm():
 
 async def score_sentiment(article_id: str, title: str, text: str):
     """Score article sentiment using LLM. Saves to DB."""
+    if not load_config()["llm"].get("enable_sentiment", True):
+        return
     if not text and not title:
         return
 

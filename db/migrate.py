@@ -51,6 +51,19 @@ def seed_topics():
     print(f"Seeded {len(topics)} topics.")
 
 
+def add_auth_columns():
+    """Add username + password_hash to users if missing."""
+    engine = get_engine()
+    with engine.connect() as conn:
+        conn.execute(text("""
+            ALTER TABLE newsguru.users ADD COLUMN IF NOT EXISTS username VARCHAR(64);
+            ALTER TABLE newsguru.users ADD COLUMN IF NOT EXISTS password_hash VARCHAR(255);
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON newsguru.users(username);
+        """))
+        conn.commit()
+    print("Auth columns added.")
+
+
 def add_translation_columns():
     """Add title_en and title_et columns if they don't exist."""
     engine = get_engine()
@@ -145,6 +158,7 @@ def add_story_clusters_tables():
 
 if __name__ == "__main__":
     run_schema()
+    add_auth_columns()
     add_translation_columns()
     add_significance_table()
     add_news_feed_table()

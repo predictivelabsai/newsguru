@@ -36,6 +36,8 @@ def _get_llm():
 
 async def run_topic_modeling():
     """Cluster recent articles into story groups."""
+    if not load_config()["llm"].get("enable_clustering", True):
+        return
     # Get unclustered articles from last 24h
     articles = fetch_all("""
         SELECT a.id, a.title, s.name AS source_name,

@@ -6,6 +6,8 @@ CREATE SCHEMA IF NOT EXISTS newsguru;
 -- Users
 CREATE TABLE IF NOT EXISTS newsguru.users (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    username        VARCHAR(64) UNIQUE,
+    password_hash   VARCHAR(255),
     email           VARCHAR(255) UNIQUE,
     display_name    VARCHAR(128),
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),

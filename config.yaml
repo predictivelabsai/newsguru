@@ -93,3 +93,18 @@ llm:
   max_tokens: 2000
   sentiment_model: grok-4-fast-reasoning
   sentiment_temperature: 0.1
+  # Feature flags — toggle individual LLM jobs. All default on; flip to false to cut cost.
+  enable_sentiment: true
+  enable_significance: true
+  enable_translation: true
+  enable_clustering: true
+  # Batch enrichment — runs once per daily_interval_seconds instead of per article.
+  daily_interval_seconds: 86400
+  batch_limit: 100
+
+security:
+  # Anonymous users may send this many chat messages before being asked to register.
+  anon_chat_limit: 3
+  # Per-IP sliding-window rate limit on chat POST.
+  chat_rate_limit_max: 10
+  chat_rate_limit_window_seconds: 600

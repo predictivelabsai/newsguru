@@ -76,10 +76,21 @@ TRANSLATIONS = {
     "create_account": {"en": "Create Account", "et": "Loo konto"},
     "create_account_desc": {"en": "Create a new account", "et": "Loo uus konto"},
     "email": {"en": "Email", "et": "E-post"},
+    "username": {"en": "Username", "et": "Kasutajanimi"},
     "password": {"en": "Password", "et": "Parool"},
     "display_name": {"en": "Display Name", "et": "Kuvatav nimi"},
     "no_account": {"en": "Don't have an account?", "et": "Pole kontot?"},
     "have_account": {"en": "Already have an account?", "et": "On juba konto?"},
+    "invalid_credentials": {"en": "Invalid username or password.", "et": "Vale kasutajanimi või parool."},
+    "missing_fields": {"en": "Username and password are required.", "et": "Kasutajanimi ja parool on kohustuslikud."},
+    "password_too_short": {"en": "Password must be at least 8 characters.", "et": "Parool peab olema vähemalt 8 märki pikk."},
+    "username_taken": {"en": "Username is already taken.", "et": "Kasutajanimi on juba võetud."},
+    "register_to_continue_title": {"en": "Free preview limit reached", "et": "Tasuta eelvaate limiit on täis"},
+    "register_to_continue_body": {
+        "en": "You've used your 3 free messages. Create a free account to keep chatting.",
+        "et": "Oled kasutanud oma 3 tasuta sõnumit. Loo tasuta konto, et jätkata vestlust.",
+    },
+    "too_many_requests": {"en": "Too many requests — please wait a moment.", "et": "Liiga palju päringuid — palun oota hetk."},
 
     # Config
     "add_source": {"en": "Add", "et": "Lisa"},

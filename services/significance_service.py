@@ -60,6 +60,8 @@ def _compute_significance(factors: dict) -> float:
 
 async def score_significance(article_id: str, title: str, summary: str, source_name: str = ""):
     """Score an article's significance using the 7-factor methodology."""
+    if not load_config()["llm"].get("enable_significance", True):
+        return
     if not title:
         return
 

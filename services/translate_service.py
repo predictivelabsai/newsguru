@@ -27,6 +27,8 @@ def _get_llm():
 
 async def translate_article_title(article_id: str, title: str, source_lang: str):
     """Translate title to the other language and store in DB."""
+    if not load_config()["llm"].get("enable_translation", True):
+        return
     target_lang = "et" if source_lang == "en" else "en"
     target_name = "Estonian" if target_lang == "et" else "English"
 

@@ -196,8 +196,63 @@ def set_language(lang_code: str, sess):
     return RedirectResponse("/", status_code=303)
 
 
+def _register_gate_bubble(lang: str):
+    """Shown in-chat when an anonymous user hits the free-message cap."""
+    return Div(
+        Div(
+            P(t("register_to_continue_title", lang), cls="font-semibold text-sm"),
+            P(t("register_to_continue_body", lang), cls="text-sm text-muted mt-1"),
+            DivLAligned(
+                A(t("register", lang), href="/register", cls="uk-button uk-button-primary uk-button-small"),
+                A(t("login", lang), href="/login", cls="uk-button uk-button-default uk-button-small"),
+                cls="gap-2 mt-3",
+            ),
+            cls="p-3",
+        ),
+        cls="chat-assistant",
+        hx_swap_oob="beforeend:#chat-messages",
+    )
+
+
+def _rate_limited_bubble(lang: str):
+    return Div(
+        Div(
+            P(t("too_many_requests", lang), cls="text-sm"),
+            cls="p-3",
+        ),
+        cls="chat-assistant",
+        hx_swap_oob="beforeend:#chat-messages",
+    )
+
+
 @rt("/chat/{session_id}/send", methods=["POST"])
-async def chat_send(session_id: str, msg: str):
+async def chat_send(session_id: str, msg: str, req, sess, website: str = ""):
+    from utils.auth import get_client_ip
+    from utils.rate_limit import check_rate_limit
+
+    lang = get_lang(sess)
+
+    # Honeypot — real users leave this blank; naive bots fill every field.
+    if website:
+        return Div(hx_swap_oob="beforeend:#chat-messages")
+
+    # Per-IP sliding-window rate limit.
+    sec_cfg = config.get("security", {})
+    max_req = int(sec_cfg.get("chat_rate_limit_max", 10))
+    window = int(sec_cfg.get("chat_rate_limit_window_seconds", 600))
+    client_ip = get_client_ip(req)
+    if not check_rate_limit(f"chat:{client_ip}", max_req, window):
+        return _rate_limited_bubble(lang)
+
+    # Anonymous-user message cap. Registered users are unlimited.
+    user = _get_session_user(sess)
+    if not user:
+        anon_limit = int(sec_cfg.get("anon_chat_limit", 3))
+        count = int(sess.get("anon_chat_count", 0))
+        if count >= anon_limit:
+            return _register_gate_bubble(lang)
+        sess["anon_chat_count"] = count + 1
+
     # Save user message
     execute_sql("""
         INSERT INTO chat_messages (session_id, role, content)
@@ -531,6 +586,16 @@ def api_clear_history():
 
 # ===================== AUTH ROUTES =====================
 
+def _auth_error(msg: str, lang: str, target: str):
+    """Small inline error card shown on the login/register page."""
+    return Div(
+        Card(
+            P(msg, cls="text-sm text-red-600 text-center"),
+            Div(A(t("back", lang), href=target, cls="uk-button uk-button-text"), cls="text-center mt-2"),
+            cls="max-w-sm mx-auto mt-12",
+        ), cls="flex justify-center p-8",
+    )
+
 @rt("/login")
 def login_page(sess):
     lang = get_lang(sess)
@@ -539,8 +604,8 @@ def login_page(sess):
             DivCentered(UkIcon("newspaper", height=32), H2("NewsGuru", cls="text-2xl font-bold"),
                         P(t("sign_in_desc", lang), cls=TextPresets.muted_sm), cls="mb-4"),
             Form(
-                Div(Label(t("email", lang), fr="email"), Input(name="email", type="email", id="email", placeholder="you@example.com", cls="uk-input"), cls="space-y-1"),
-                Div(Label(t("password", lang), fr="password"), Input(name="password", type="password", id="password", placeholder=t("password", lang), cls="uk-input"), cls="space-y-1 mt-3"),
+                Div(Label(t("username", lang), fr="username"), Input(name="username", type="text", id="username", placeholder=t("username", lang), autocomplete="username", cls="uk-input"), cls="space-y-1"),
+                Div(Label(t("password", lang), fr="password"), Input(name="password", type="password", id="password", placeholder=t("password", lang), autocomplete="current-password", cls="uk-input"), cls="space-y-1 mt-3"),
                 Button(t("sign_in", lang), type="submit", cls=ButtonT.primary + " uk-width-1-1 mt-4"),
                 hx_post="/auth/login", hx_target="body",
             ),
@@ -557,9 +622,8 @@ def register_page(sess):
             DivCentered(UkIcon("newspaper", height=32), H2("NewsGuru", cls="text-2xl font-bold"),
                         P(t("create_account_desc", lang), cls=TextPresets.muted_sm), cls="mb-4"),
             Form(
-                Div(Label(t("display_name", lang), fr="dn"), Input(name="display_name", id="dn", placeholder=t("display_name", lang), cls="uk-input"), cls="space-y-1"),
-                Div(Label(t("email", lang), fr="email"), Input(name="email", type="email", id="email", placeholder="you@example.com", cls="uk-input"), cls="space-y-1 mt-3"),
-                Div(Label(t("password", lang), fr="password"), Input(name="password", type="password", id="password", placeholder=t("password", lang), cls="uk-input"), cls="space-y-1 mt-3"),
+                Div(Label(t("username", lang), fr="username"), Input(name="username", type="text", id="username", placeholder=t("username", lang), autocomplete="username", cls="uk-input"), cls="space-y-1"),
+                Div(Label(t("password", lang), fr="password"), Input(name="password", type="password", id="password", placeholder=t("password", lang), autocomplete="new-password", cls="uk-input"), cls="space-y-1 mt-3"),
                 Button(t("create_account", lang), type="submit", cls=ButtonT.primary + " uk-width-1-1 mt-4"),
                 hx_post="/auth/register", hx_target="body",
             ),
@@ -569,19 +633,41 @@ def register_page(sess):
     )
 
 @rt("/auth/login", methods=["POST"])
-def auth_login(email: str, password: str, sess):
-    user = fetch_one("SELECT id, email, display_name FROM users WHERE email = :email", {"email": email})
-    if not user: return RedirectResponse("/login", status_code=303)
-    sess["user_id"] = str(user["id"]); sess["user_email"] = user["email"]; sess["user_name"] = user.get("display_name", email)
+def auth_login(username: str, password: str, sess):
+    from utils.auth import verify_password
+    lang = get_lang(sess)
+    username = (username or "").strip().lower()
+    user = fetch_one(
+        "SELECT id, username, password_hash, display_name FROM users WHERE username = :u",
+        {"u": username},
+    )
+    if not user or not verify_password(password or "", user.get("password_hash") or ""):
+        return _auth_error(t("invalid_credentials", lang), lang, "/login")
+    sess["user_id"] = str(user["id"])
+    sess["user_name"] = user.get("display_name") or user.get("username") or username
+    sess["anon_chat_count"] = 0
     return RedirectResponse("/", status_code=303)
 
 @rt("/auth/register", methods=["POST"])
-def auth_register(display_name: str, email: str, password: str, sess):
-    existing = fetch_one("SELECT id FROM users WHERE email = :email", {"email": email})
-    if existing: return RedirectResponse("/login", status_code=303)
-    execute_sql("INSERT INTO users (email, display_name) VALUES (:email, :name)", {"email": email, "name": display_name})
-    user = fetch_one("SELECT id, email, display_name FROM users WHERE email = :email", {"email": email})
-    sess["user_id"] = str(user["id"]); sess["user_email"] = user["email"]; sess["user_name"] = user.get("display_name", email)
+def auth_register(username: str, password: str, sess):
+    from utils.auth import hash_password
+    lang = get_lang(sess)
+    username = (username or "").strip().lower()
+    if not username or not password:
+        return _auth_error(t("missing_fields", lang), lang, "/register")
+    if len(password) < 8:
+        return _auth_error(t("password_too_short", lang), lang, "/register")
+    existing = fetch_one("SELECT id FROM users WHERE username = :u", {"u": username})
+    if existing:
+        return _auth_error(t("username_taken", lang), lang, "/register")
+    execute_sql(
+        "INSERT INTO users (username, password_hash, display_name) VALUES (:u, :h, :d)",
+        {"u": username, "h": hash_password(password), "d": username},
+    )
+    user = fetch_one("SELECT id, username, display_name FROM users WHERE username = :u", {"u": username})
+    sess["user_id"] = str(user["id"])
+    sess["user_name"] = user.get("display_name") or username
+    sess["anon_chat_count"] = 0
     return RedirectResponse("/", status_code=303)
 
 @rt("/auth/logout")
@@ -783,6 +869,8 @@ def _app_shell(session: dict, active_topic: str = None, lang: str = "en", user: 
                             Button(UkIcon("send", height=16), type="submit", cls=ButtonT.primary),
                             cls="gap-2",
                         ),
+                        Input(name="website", type="text", tabindex="-1", autocomplete="off",
+                              style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;"),
                         hx_post=f"/chat/{session_id}/send",
                         hx_target="#chat-messages",
                         hx_swap="beforeend",
@@ -1328,6 +1416,8 @@ async def on_startup():
     for t in get_topics():
         topic_queues[t["slug"]] = asyncio.Queue()
     from services.feed_scheduler import run_feed_scheduler
+    from services.daily_enrichment import run_daily_scheduler
     asyncio.create_task(run_feed_scheduler(config, shutdown_event, article_queue, topic_queues))
+    asyncio.create_task(run_daily_scheduler(shutdown_event))
 
 serve(port=5020)

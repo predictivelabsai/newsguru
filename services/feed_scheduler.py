@@ -5,7 +5,6 @@ from services.rss_service import fetch_all_rss
 from services.scraper_service import scrape_article
 from services.topic_service import classify_article, save_article_topics
 from services.journalist_service import track_journalist
-from services.sentiment_service import score_sentiment
 from utils.config import get_all_sources
 
 logger = logging.getLogger(__name__)
@@ -64,19 +63,8 @@ async def _process_article(raw: dict, article_queue: asyncio.Queue, topic_queues
     if author:
         track_journalist(article_id, author, source_id)
 
-    # Score sentiment (async, don't block)
-    text_for_sentiment = scraped.get("full_text") or raw.get("summary", "")
-    await score_sentiment(article_id, raw["title"], text_for_sentiment)
-
-    # Translate title to the other language
-    from services.translate_service import translate_article_title
-    await translate_article_title(article_id, raw["title"], raw.get("language", "en"))
-
-    # Score significance (7-factor)
-    from services.significance_service import score_significance
-    source_name_for_scoring = fetch_one("SELECT name FROM sources WHERE id = :id", {"id": source_id})
-    src_name = source_name_for_scoring["name"] if source_name_for_scoring else ""
-    await score_significance(article_id, raw["title"], raw.get("summary", ""), src_name)
+    # LLM enrichment (sentiment, significance, translation, clustering) is deferred
+    # to services.daily_enrichment — runs once per day instead of per article.
 
     # Insert into news_feed history table
     topic_names = [t["slug"] for t in topics]
@@ -199,12 +187,8 @@ async def run_feed_scheduler(
                 except Exception as e:
                     logger.error(f"Tavily discovery error: {e}")
 
-            # Topic modeling — cluster articles into stories
-            try:
-                from agents.topic_modeler import run_topic_modeling
-                await run_topic_modeling()
-            except Exception as e:
-                logger.error(f"Topic modeling error: {e}")
+            # Topic modeling is now part of the daily enrichment batch
+            # (services.daily_enrichment), not this hot loop.
 
         except Exception as e:
             logger.error(f"Feed scheduler cycle {cycle} error: {e}")
